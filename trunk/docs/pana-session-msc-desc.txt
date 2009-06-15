@@ -1,0 +1,110 @@
+Input commands for:
+http://websequencediagrams.com/ 
+-----------------------------------------------
+
+participant PaC
+participant PAA
+
+
+PaC-->PAA:Message(sequence number)[AVPs]
+
+note over PaC,PAA:Authentication and authorization phase
+
+PaC->PAA:PANA-Client-Initiation(0)
+
+PAA->PaC:\n\nPANA-Auth-Request(x)[PRF-Algorithm,Integrity-Algorithm,sess id,'S']
+activate PaC
+PaC-->PAA:PANA-Auth-Answer(x)[PRF-Algorithm, Integrity-Algorithm,'S']
+deactivate PaC
+note left of PAA:'S' bit set
+
+PAA->PaC:\n\nPANA-Auth-Request(x+1)[Nonce, EAP-Payload]
+activate PaC
+PaC-->PAA:PANA-Auth-Answer(x+1)[Nonce]\n(No piggybacking EAP)
+deactivate PaC
+
+PaC->PAA:\n\nPANA-Auth-Request(y)[EAP-Payload]
+activate PAA
+PAA-->PaC:PANA-Auth-Answer(y)
+deactivate PAA
+
+PAA->PaC:\n\nPANA-Auth-Request(x+2)[EAP-Payload]
+activate PaC
+PaC-->PAA:PANA-Auth-Answer(x+2)[EAP-Payload]\n(Piggybacking EAP)
+deactivate PaC
+
+PAA->PaC:\n\nPANA-Auth-Request(x+3)[Result-Code, EAP-Payload,Key-Id, Session-Lifetime, AUTH, 'C']
+activate PaC
+PaC-->PAA:PANA-Auth-Answer(x+3)[Key-Id, AUTH, 'C']
+deactivate PaC
+note left of PAA:'C' bit set
+
+
+
+note over PaC,PAA:Access phase
+
+PAA->PaC:\n\nPANA-Notification-Request(x+4)[AUTH,'P']
+activate PaC
+PaC-->PAA:PANA-Notification-Answer(X+4)[AUTH,'P']
+deactivate PaC
+note left of PAA:'P' bit set
+
+PaC->PAA:\n\nPANA-Notification-Request(x+4)[AUTH,'P']
+activate PAA
+PAA-->PaC:PANA-Notification-Answer(X+4)[AUTH,'P']
+deactivate PAA
+note left of PAA:'P' bit set
+
+
+
+
+
+note over PaC,PAA:Re-Authentication Phase
+
+PaC->PAA:\n\nPANA-Notification-Request(q)[AUTH,'A']                             
+activate PAA
+PAA->PaC:PANA-Notification-Answer(q)[AUTH,'A']
+deactivate PAA
+note left of PAA:'A' bit set
+
+PAA->PaC:\n\nPANA-Auth-Request(p)[EAP-Payload, Nonce, AUTH]
+activate PaC
+PaC->PAA:PANA-Auth-Answer(p)[AUTH, Nonce]
+deactivate PaC
+
+PaC->PAA:\n\nPANA-Auth-Request(q+1)[EAP-Payload, AUTH]
+activate PAA
+PAA->PaC:PANA-Auth-Answer(q+1)[AUTH]
+deactivate PAA
+
+PAA->PaC:\n\nPANA-Auth-Request(p+1)[EAP-Payload, AUTH]
+activate PaC
+PaC->PAA:PANA-Auth-Answer(p+1)[EAP-Payload, AUTH]
+deactivate PaC
+
+PAA->PaC:\n\nPANA-Auth-Request(p+2)[Result-Code, EAP-Payload, Key-Id, Session-Lifetime, AUTH,'C']
+activate PaC
+PaC->PAA:PANA-Auth-Answer(p+2)[Key-Id, AUTH,'C']
+deactivate PaC
+note left of PAA:'C' bit set
+
+note over PaC,PAA:Access phase
+
+PaC->PAA:
+PAA-->PaC:
+PAA->PaC:
+PaC-->PAA:
+
+note over PaC,PAA:Termination Phase
+
+PaC->PAA:\nPANA-Termination-Request(t)[Termination-Cause, AUTH]
+activate PAA
+PAA-->PaC:PANA-Termination-Answer(t)[AUTH]
+deactivate PAA
+note left of PAA: Session context is cleared
+
+
+destroy PAA
+destroy PaC
+
+
