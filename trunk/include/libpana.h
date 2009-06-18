@@ -14,6 +14,9 @@
 
 #define F_AVP_FLAG_VENDOR 0x80
 
+#define PANA_SESSION_MIN_TIMEOUT  60     // Session timeout permitted limits in seconds
+#define PANA_SESSION_MAX_TIMEOUT  36000 
+
 enum pana_avp_layout {
     PAL_OFFSET_AVP_CODE         = 0;
     PAL_OFFSET_AVP_FLAGS        = 2;
