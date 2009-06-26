@@ -32,7 +32,7 @@ int str_to_ip_port(const char * const in_str,
          * Only the ip is specified. The port is implied to be the default one
          */
         *out_port = NAS_DEF_PORT;
-        if (!inet_pton(AF_INET, in_str, out_ip)) {
+        if (inet_pton(AF_INET, in_str, out_ip)<=0) {
             return -1;
         }
     } else {
@@ -46,7 +46,7 @@ int str_to_ip_port(const char * const in_str,
             return -1;
         }
         *out_port = tmp_val;
-        if (!inet_pton(AF_INET, in_str, out_ip)) {
+        if (inet_pton(AF_INET, in_str, out_ip)<=0) {
             return -1;
         }
     }
@@ -132,7 +132,11 @@ static int process_args(char * argv[], int argc) {
 }
 
 int process_config_files() {
+    /*
+     * TODO: implement parsing of config and dhcp-lease file
+     */
     
+    return RES_CFG_FILES_OK;
 }
 
 
