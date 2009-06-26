@@ -7,11 +7,14 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 #include <libpana.h>
-
 #include <pacd.h>
 
 #define DECIMAL_BASE    10
@@ -67,16 +70,15 @@ static uint16_t nas_port = NAS_DEF_PORT;
 #define CMD_FLAG_S      0x0002
 #define CMD_FLAG_C      0x0004
 #define CMD_FLAG_D      0x0008
-#define CMD_FLAG_T      0x0010
 
 #define PACD_USAGE_MSG ""\
 "Usage: pacd [-p <client-port>] [-s <nas-ip[:port]>] [-c <config-file>]\n"\
-"            [-d <dhcp-lease-file>] [-t <session-timeout-seconds>]\n"\
+"            [-d <dhcp-lease-file>]\n"\
 "       pacd { -h | --help }\n"\
 "Warning: command line parameters take precedence over config files.\n"
 
 static int process_args(char * argv[], int argc) {
-    short flags = 0x0000; // the p,s,c,d,t;
+    short flags = 0x0000; // the p,s,c,d;
     int ctoken = 1;       // skip command name
     char * pos = NULL;
     unsigned long tmp_parsing_val = 0;
@@ -108,18 +110,6 @@ static int process_args(char * argv[], int argc) {
         else if ((strcmp(argv[ctoken++], "-d") == 0) && !(flags & CMD_FLAG_D)) {
             dhcp_lease_file = argv[ctoken++];
         }
-        else if ((strcmp(argv[ctoken++], "-t") == 0) && !(flags & CMD_FLAG_T)) {
-            /*
-             * Session timeout in seconds;
-             */
-            tmp_parsing_val = strtoul(argv[ctoken++], &pos, DECIMAL_BASE);
-            if (pos != '\0' || tmp_parsing_val > PANA_SESSION_MAX_TIMEOUT ||
-                    tmp_parsing_val < PANA_SESSION_MIN_TIMEOUT) {
-                puts("The session timeout must be in "\
-                        #PANA_SESSION_MIN_TIMEOUT "-" #PANA_SESSION_MAX_TIMEOUT "\n");
-                return ERR_BADARGS;
-            }
-        }
         else {
             puts("Bad or duplicate arguments.\n");
             puts(PACD_USAGE_MSG);
@@ -142,21 +132,55 @@ int process_config_files() {
 
 int main(char * argv[], int argc)
 {
+    struct sockaddr_in pac_sockaddr;
+    struct sockaddr_in nas_sockaddr;
+    int sockfd;
+    
     int exit_code = 0;
     
     exit_code = process_args(argv, argc);
-    if (exit_code > 0x1000) {
+    if (exit_code > ERR_CODE) {
         exit(exit_code);
     }
 
     exit_code = process_config_files();
-    if (exit_code > 0x1000) {
+    if (exit_code > ERR_CODE) {
         exit(exit_code);
     }
+
+    memset(&pac_sockaddr, 0, sizeof pac_sockaddr);
+    pac_sockaddr.sin_family = AF_INET;
+    pac_sockaddr.sin_addr.s_addr = INADDR_ANY; 
+    pac_sockaddr.sin_port = htons(pacd_port);
     
     
+    memset(&nas_sockaddr, 0, sizeof nas_sockaddr);
+    nas_sockaddr.sin_family = AF_INET;
+    nas_sockaddr.sin_addr.s_addr = nas_v4_ip;
+    nas_sockaddr.sin_port = htons(nas_port);
     
+    if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
+        exit(ERR_SOCK_ERROR);
+    }
     
 
+    if ((bind(sockfd, &pac_sockaddr, sizeof pac_sockaddr)) < 0) {
+        close(sockfd);
+        exit(ERR_BIND_SOCK);
+    }
 
+    
+    if ((connect(sockfd, &nas_sockaddr, sizeof nas_sockaddr)) < 0) {
+        close(sockfd);
+        exit(ERR_CONNECT_SOCK);
+    }
+    
+    /*
+     * Start the PANA session
+     */
+    
+    
+    close(sockfd);
+    return exit_code;
+    
 }
