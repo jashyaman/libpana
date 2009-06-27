@@ -14,16 +14,15 @@
 
 static uint8_t * PAD = {0x00, 0x00, 0x00, 0x00};
 
-static inline uint16_t ceil_to_dwords(const uint16_t length) {
-    return (length & 0xFFFC) + (length & 0x003) ? 0x0040 : 0x0000;
+static inline uint16_t round_to_dwords(const uint16_t length) {
+    return (length & 0xFFFC) + (length & 0x003) ? 0x0004 : 0x0000;
 }
 
 static inline uint16_t pads_to_dword(const uint16_t length) {
     /*
-     * basically it finds the remainder after a division by four
-     * which is the value of the last 2 bits.
+     * basically it finds the required padding bytes to a dword boundary
      */
-    return (length & 0x0003)
+    return (4 - (length & 0x003)) & 0x003;
 }
 
 static inline uint16_t bytes_to_u16 (const unsigned char * const buf) {
@@ -34,6 +33,14 @@ static inline uint16_t bytes_to_u16 (const unsigned char * const buf) {
 static inline uint32_t bytes_to_u32 (const unsigned char * const buf) {
     //return (buf[0] << 24 | buf[1] << 16  | buf[2] << 8 | buf[3]);
     return *((uint32_t *) buf);
+}
+
+static inline void serialize_u16 (uint8_t * out_buf, uint16_t val) {
+    *(uint16_t* out_buf) = val;
+}
+
+static inline void serialize_u32 (uint8_t * out_buf, uint32_t val) {
+    *(uint32_t* out_buf) = val;
 }
 
 /*
@@ -97,7 +104,7 @@ static int avp_list_insert (pana_avp_node_t **dst_list,
  * Parse a packet from an octet-stream
  */
 int
-parse_pana_packet (const unsigned char * const buf, const unsigned int len,
+parse_pana_packet (const uint8_t * const buf, uint16_t len,
                   pana_packet_t * out)
 {
     const unsigned char * p = buf;
@@ -108,10 +115,10 @@ parse_pana_packet (const unsigned char * const buf, const unsigned int len,
      * Copy the fixed fields of the PANA converting each one
      * to host byte order except for the flags an reserved fields.
      */
-    out->pp_reserved = bytes_to_u16(p + PPL_OFFSET_RESERVED);
+    out->pp_reserved       = ntohs(bytes_to_u16(p + PPL_OFFSET_RESERVED));
     out->pp_message_length = ntohs(bytes_to_u16(p + PPL_OFFSET_MSG_LENGTH));
-    out->pp_flags = bytes_to_u16(p + PPL_OFFSET_FLAGS);
-    out->pp_message_type = ntohs(bytes_to_u16(p + PPL_OFFSET_MSG_TYPE));
+    out->pp_flags          = ntohs(bytes_to_u16(p + PPL_OFFSET_FLAGS));
+    out->pp_message_type   = ntohs(bytes_to_u16(p + PPL_OFFSET_MSG_TYPE));
 
     out->pp_session_id = ntohl(bytes_to_u32(p + PPL_OFFSET_SESSION_ID));
     out->pp_seq_number = ntohl(bytes_to_u32(p + PPL_OFFSET_SEQ_NUMBER));
@@ -140,10 +147,10 @@ parse_pana_packet (const unsigned char * const buf, const unsigned int len,
         *cursor = tmp_node;
         cursor = &(*cursor->next);
 
-        tmp_node->node.avp_code = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_CODE));
-        tmp_node->node.avp_flags = bytes_to_u16(p + PAL_OFFSET_AVP_FLAGS);
-        tmp_node->node.avp_length = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_LENGTH));
-        tmp_node->node.avp_reserved = bytes_to_u16(p + PAL_OFFSET_AVP_RESERVED);
+        tmp_node->node.avp_code     = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_CODE));
+        tmp_node->node.avp_flags    = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_FLAGS));
+        tmp_node->node.avp_length   = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_LENGTH));
+        tmp_node->node.avp_reserved = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_RESERVED));
 
         if (tmp_node->node.avp_flags | F_AVP_FLAG_VENDOR) {
             tmp_node->node.avp_vendor_id = ntohs(bytes_to_u32(p + PAL_OFFSET_AVP_VENDOR_ID));
@@ -182,12 +189,12 @@ serialize_pana_packet (const pana_packet_t * const pkt,
     *pout = out;
     *len = pkt->pp_message_length;
 
-    memcpy(out + PPL_OFFSET_RESERVED, pkt->pp_reserved, sizeof(uint16_t));
-    memcpy(out + PPL_OFFSET_MSG_LENGTH, htons(pkt->pp_message_length), sizeof(uint16_t));
-    memcpy(out + PPL_OFFSET_FLAGS, pkt->pp_flags, sizeof(uint16_t));
-    memcpy(out + PPL_OFFSET_MSG_TYPE, htons(pkt->pp_message_type), sizeof(uint16_t));
-    memcpy(out + PPL_OFFSET_SESSION_ID, htonl(pkt->pp_session_id), sizeof(uint32_t));
-    memcpy(out + PPL_OFFSET_SEQ_NUMBER, htonl(pkt->pp_seq_number), sizeof(uint32_t));
+    serialize_u16(out + PPL_OFFSET_RESERVED,    htons(pkt->pp_reserved));
+    serialize_u16(out + PPL_OFFSET_MSG_LENGTH,  htons(pkt->pp_message_length));
+    serialize_u16(out + PPL_OFFSET_FLAGS,       htons(pkt->pp_flags));
+    serialize_u16(out + PPL_OFFSET_MSG_TYPE,    htons(pkt->pp_message_type));
+    serialize_u32(out + PPL_OFFSET_SESSION_ID,  htonl(pkt->pp_session_id));
+    serialize_u32(out + PPL_OFFSET_SEQ_NUMBER,  htonl(pkt->pp_seq_number));
     out += PPL_OFFSET_AVP;
 
     /*
@@ -195,24 +202,24 @@ serialize_pana_packet (const pana_packet_t * const pkt,
      */
     cursor = &(pkt->pp_avp_list);
     while (*cursor != NULL) {
-        memcpy(out + PAL_OFFSET_AVP_CODE, cursor->node.avp_code, sizeof(uint16_t));
-        memcpy(out + PAL_OFFSET_AVP_FLAGS, cursor->node.avp_flags, sizeof(uint16_t));
-        memcpy(out + PAL_OFFSET_AVP_LENGTH, cursor->node.avp_length, sizeof(uint16_t));
-        memcpy(out + PAL_OFFSET_AVP_RESERVED, cursor->node.avp_reserved, sizeof(uint16_t));
+        serialize_u16(out + PAL_OFFSET_AVP_CODE,     htons(cursor->node.avp_code));
+        serialize_u16(out + PAL_OFFSET_AVP_FLAGS,    htons(cursor->node.avp_flags));
+        serialize_u16(out + PAL_OFFSET_AVP_LENGTH,   htons(cursor->node.avp_length));
+        serialize_u16(out + PAL_OFFSET_AVP_RESERVED, htons(cursor->node.avp_reserved));
 
         if (cursor->node.avp_flags | F_AVP_FLAG_VENDOR) {
-            memcpy(out + PAL_OFFSET_AVP_VENDOR_ID, cursor->node.avp_vendor_id, sizeof(uint32_t));
+            serialize_u32(out + PAL_OFFSET_AVP_VENDOR_ID, htonl(cursor->node.avp_vendor_id));
             out += PAL_OFFSET_AVP_VENDOR_VALUE;
         } else {
             out += PAL_OFFSET_AVP_VALUE;
         }
 
-        memcpy(out, cursor->node.avp_value, cursor->node.avp_length);
+        memcpy(out, &cursor->node.avp_value, cursor->node.avp_length);
         /*
          * Pad to dword boundary
          */
         memcpy(out, PAD, pads_to_dword(cursor->node.avp_length));
-        out += ceil_to_dwords(cursor->node.avp_length);
+        out += round_to_dwords(cursor->node.avp_length);
         cursor = &(*cursor->next);
     }
 }
@@ -251,7 +258,7 @@ construct_pana_packet (uint16_t flags,
     while (*cursor != NULL) {
         msg_length += (cursor->node.avp_flags | F_AVP_FLAG_VENDOR) ?
                 PAL_OFFSET_AVP_VENDOR_VALUE : PAL_OFFSET_AVP_VALUE;
-        msg_length += ceil_to_dwords(cursor->node.avp_length);
+        msg_length += round_to_dwords(cursor->node.avp_length);
         cursor = &(*cursor->next);
     }
 
@@ -270,3 +277,21 @@ free_pana_packet(pana_packet_t * pkt){
 
     return 0;
 }
+
+void libpana_pac_packet_handler (uint8_t * data, uint16_t length) {
+    pana_packet_t tpkt;
+    
+    if(parse_pana_packet(data, length, &tpkt)==0) {
+        pac_packet_handler(&tpkt);
+    }
+}
+
+void libpana_paa_packet_handler (uint8_t * data, uint16_t length) {
+    pana_packet_t tpkt;
+    
+    if(parse_pana_packet(data, length, &tpkt)==0) {
+        paa_packet_handler(&tpkt);
+    }
+}
+
+

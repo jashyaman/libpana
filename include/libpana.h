@@ -14,6 +14,49 @@
 
 #define F_AVP_FLAG_VENDOR 0x80
 
+enum pana_flags {
+    PFLAG_R     = 0x8000;       // Request
+    PFLAG_S     = 0x4000;       // Start
+    PFLAG_C     = 0x2000;       // Complete
+    PFLAG_A     = 0x1000;       // re-Authrtcation
+    PFLAG_P     = 0x0800;       // Ping
+    PFLAG_I     = 0x0400;       // IP Reconfiguration
+};
+
+enum pana_message_types {
+    PMT_PCI     = 1;            // PANA-Client-Initiation
+    PMT_PAR     = 2;            // PANA-Auth-Request
+    PMT_PAN     = 2;            // PANA-Auth-Answer
+    PMT_PTR     = 3;            // PANA-Termination-Request
+    PMT_PTA     = 3;            // PANA-Termination-Answer
+    PMT_PNR     = 4;            // PANA-Notification-Request
+    PMT_PNA     = 4;            // PANA-Notification-Answer
+};
+
+enum pana_avp_codes {
+    PAVP_AUTH           = 1;
+    PAVP_EAP_PAYLOAD    = 2;
+    PAVP_INTEGRITY_ALG  = 3;
+    PAVP_KEY_ID         = 4;
+    PAVP_NONCE          = 5;
+    PAVP_PRF_ALG        = 6;
+    PAVP_RESULT_CODE    = 7;
+    PAVP_SESSION_LIFET  = 8;
+    PAVP_TERM_CAUSE     = 9;
+};
+
+enum pana_result_codes {
+    PANA_SUCCESS                 = 0;
+    PANA_AUTHENTICATION_REJECTED = 1;
+    PANA_AUTHORIZATION_REJECTED  = 2;
+};
+
+enum pana_termination_causes {
+    PTC_LOGOUT          = 1;
+    PTC_ADMINISTRATIVE  = 4;
+    PTC_SESSION_TIMEOUT = 8;
+};
+
 #define PANA_SESSION_MIN_TIMEOUT  60     // Session timeout permitted limits in seconds
 #define PANA_SESSION_MAX_TIMEOUT  36000 
 
@@ -69,6 +112,58 @@ typedef struct pana_packet_s {
      */
     pana_avp_node_t *pp_avp_list;
 } pana_packet_t;
+
+
+/*
+ * Session definitions
+ */
+typedef struct pana_sa_s {
+    uint8_t PaC_nonce[20];
+    uint8_t PAA_nonce[20];
+    uint8_t MSK[64];
+    uint32_t KEY_ID;
+    uint8_t PANA_AUTH_KEY[];    // Length will depend on the prf+ chosen
+    uint32_t prf;
+    uint32_t integrity_alg;
+} pana_sa_t;
+
+
+typedef struct ip_port_s {
+    uint32_t ip;
+    uint16_t port;      // UDP Port
+};
+
+typedef struct pana_sesion_s {
+    uint32_t session_id;
+    ip_port_t pac_ip_port;
+    ip_port_t paa_ip_port;
+    pac_session_state_t cstate;
+    uint32_t seq_rx;
+    uint32_t seq_tx;
+    pana_packet_t * pkt_cache;
+    uint32_t rtx_interval;
+    uint32_t session_lifetime;
+    pana_sa_t * sa;
+} pana_session_t;
+
+
+/*
+ * -------------------------------------------------------------------------
+ * PaC specific functions
+ * -------------------------------------------------------------------------
+ */
+
+extern int pac_packet_handler(pana_packet_t * pkt);
+
+
+/*
+ * -------------------------------------------------------------------------
+ * PAA specific functions
+ * -------------------------------------------------------------------------
+ */
+
+extern int paa_packet_handler(pana_packet_t * pkt);
+
 
 
 
