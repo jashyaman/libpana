@@ -19,12 +19,10 @@
 #ifndef INCLUDES_H
 #define INCLUDES_H
 
-#include "os.h"
-#include "debug.h"
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
 #include <string.h>
 #include <sys/types.h>
 #include <errno.h>
@@ -35,6 +33,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-
+#include "os.h"
+#include "debug.h"
 
 #endif /* INCLUDES_H */

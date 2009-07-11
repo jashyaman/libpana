@@ -5,44 +5,57 @@
  *      Author: alex
  */
 
+#include "utils/includes.h"
+#include "utils/util.h"
+#include "utils/bytebuff.h"
+
 #include "libpana.h"
 #include "packet.h"
-#include "utils/util.h"
+
+
+
+
 
 static pana_session_t * pacs;
+static pac_config_t * cfg;
 
 typedef enum {
     PAC_STATE_CLOSED   
 } pac_session_state_t;
 
 
-int pac_session_init(ip_port_t * pac, ip_port_t * paa){
+int pac_session_init(pac_config_t * pac_cfg){
+    cfg = *pac_cfg;
     pacs = malloc(sizeof(pana_session_t));
     pacs->cstate = PAC_STATE_CLOSED;
-    pacs->pac_ip_port = *pac;
-    pacs->paa_ip_port = *paa;  
+    pacs->pac_ip_port = cfg->pac;
+    pacs->paa_ip_port = cfg->paa;  
 }
 
-int create_PCI(uint8_t ** pciout, size_t * outlen) {
+bytebuff_t create_PCI() {
     
     pana_packet_t *outpkt;
-    int ret;
+    bytebuff_t * ret;
     
     outpkt = construct_pana_packet(PFLAGS_NONE, PMT_PCI, 0, 0, NULL);
     if (outpkt == NULL) {
-        return -1;
+        return NULL;
     }
-    
-    ret = serialize_pana_packet(outpkt, pciout, outlen);
+
+    ret = serialize_pana_packet(outpkt);
+    free_pana_packet(outpkt);
     
     return ret;
 }
 
-int process_packet(uint8_t * datain, size_t datalen,
+int pac_process_packet(uint8_t * datain, size_t datalen,
                    uint8_t ** resp, size_t * resplen) {
     
     int res;
-    pana_packet_t * pkt_in;
+    pana_packet_t * pkt_in = NULL;
+    pana_packet_t * pkt_out = NULL;
+    pana_avp_node_t * tmpavplist = NULL;
+    pana_avp_t * tmp_avp = NULL;
     
     res = parse_pana_packet(datain, datalen, pkt_in);
     if (res < 0) {
@@ -56,6 +69,15 @@ int process_packet(uint8_t * datain, size_t datalen,
             pacs->session_id = pkt_in->pp_session_id;
             pacs->seq_rx = pkt_in -> pp_seq_number;
             pacs->seq_tx = os_random();
+            
+            tmp_avp = create_avp(PAVP_V_IDENTITY, F_AVP_FLAG_VENDOR, PANA_VENDOR_UPB,
+                    cfg->eap_cfg->identity, cfg->eap_cfg->identity_len)
+            
+            tmp_node->next
+            pkt_out = construct_pana_packet(PFLAG_S | PFLAG_R,
+                        PMT_PAN, pacs->session_id, pacs->seq_tx, tmpavplist);
+            
+            free(tmp_avp);
             
         }
     }

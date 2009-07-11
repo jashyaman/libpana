@@ -12,11 +12,11 @@
  * See README and COPYING for more details.
  */
 
-#include "includes.h"
+#include "util/includes.h"
+#include "util/util.h"
 
-#include "common.h"
-#include "md5.h"
-#include "crypto.h"
+#include "crypto/md5.h"
+
 #include "chap.h"
 
 void chap_md5(u8 id, const u8 *secret, size_t secret_len, const u8 *challenge,

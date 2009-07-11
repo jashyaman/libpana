@@ -12,7 +12,7 @@
  * See README and COPYING for more details.
  */
 
-#include "includes.h"
+#include "util/includes.h"
 
 #include "eap_common/chap.h"
 
@@ -25,7 +25,7 @@ struct eap_md5_data {
 };
 
 
-static void * eap_md5_init(struct eap_sm *sm)
+static void * eap_md5_init()
 {
 	struct eap_md5_data *data;
 
@@ -38,14 +38,14 @@ static void * eap_md5_init(struct eap_sm *sm)
 }
 
 
-static void eap_md5_reset(struct eap_sm *sm, void *priv)
+static void eap_md5_reset(void *priv)
 {
 	struct eap_md5_data *data = priv;
 	os_free(data);
 }
 
 
-static struct wpabuf * eap_md5_buildReq(struct eap_sm *sm, void *priv, u8 id)
+static struct wpabuf * eap_md5_buildReq(void *priv, u8 id)
 {
 	struct eap_md5_data *data = priv;
 	struct wpabuf *req;
@@ -133,7 +133,7 @@ static void eap_md5_process(struct eap_peer_config *cfg, void *priv,
 }
 
 
-static Boolean eap_md5_isDone(struct eap_sm *sm, void *priv)
+static Boolean eap_md5_isDone(void *priv)
 {
 	struct eap_md5_data *data = priv;
 	return data->state != CONTINUE;

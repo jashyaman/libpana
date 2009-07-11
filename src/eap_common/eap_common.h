@@ -20,7 +20,7 @@
 struct eap_hdr {
         u8 code;
         u8 identifier;
-        be16 length; /* including code and identifier; network byte order */
+        u16 length; /* including code and identifier; network byte order */
         /* followed by length-4 octets of data */
 } __attribute__ ((packed));
 

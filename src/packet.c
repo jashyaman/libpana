@@ -10,10 +10,10 @@
 #include <string.h>
 #include <netinet/in.h>
 
-#include <libpana.h>
+#include "../include/libpana.h"
 #include "utils/util.h"
 
-static uint8_t * PAD = {0x00, 0x00, 0x00, 0x00};
+static uint8_t PAD[4] = {0x00, 0x00, 0x00, 0x00};
 
 static inline uint16_t round_to_dwords(const uint16_t length) {
     return (length & 0xFFFC) + (length & 0x003) ? 0x0004 : 0x0000;
@@ -30,7 +30,37 @@ static inline uint16_t pads_to_dword(const uint16_t length) {
 /*
  * AVP list management functions
  */
-static int avp_list_destroy(pana_avp_node_t *avp_list)
+pana_avp_t * create_avp(uint16_t code, uint16_t flags, uint32_t vendorid,
+                        uint8_t * value, uint16_t length) {
+    pana_avp_t * out = smalloc(pana_avp_t);
+    if (out == NULL) {
+        return NULL;
+    }
+    out->avp_code = code;
+    out->avp_flags = flags;
+    out->avp_vendor_id = vendorid;
+    out->avp_value = value;
+    out->avp_length = length;  
+}
+
+void free_avp (pana_avp_t * avp) {
+    if (avp->avp_value != NULL) {
+        free(avp->avp_value);
+    }
+    free(avp);
+}
+
+pana_avp_node_t * avp_node_create(const pana_avp_t * node) {
+    pana_avp_node_t * out = malloc(sizeof(pana_avp_node_t));
+    if (out == NULL) {
+        return NULL;
+    }
+    out->node = *node;
+    out->next = NULL;
+    return out;
+}
+
+void avp_list_destroy(pana_avp_node_t *avp_list)
 {
     pana_avp_node_t * cursor;
     pana_avp_node_t * tmp_head;
@@ -39,45 +69,38 @@ static int avp_list_destroy(pana_avp_node_t *avp_list)
 
     while (cursor != NULL) {
         tmp_head = cursor->next;
-        free(cursor->node.avp_value);
+        if (node.avp_value != NULL) {
+            free(cursor->node.avp_value);
+        }
         free(cursor);
         cursor = tmp_head;
     }
-
-    return 0;
 }
 
-static int avp_list_append (pana_avp_node_t **dst_list,
-                            pana_avp_node_t * src_list)
+pana_avp_node_t *
+avp_list_append (pana_avp_node_t * dst_list,
+                 pana_avp_node_t * src_list)
 {
-    pana_avp_node_t ** cursor = dst_list;
-
-    while(*cursor != NULL) {
-        cursor = &(*cursor->next);
+    pana_avp_node_t * cursor = dst_list;
+    
+    if (cursor == NULL) {
+        return src_list;
+    }
+    
+    while(cursor->next != NULL) {
+        cursor = cursor->next;
     }
 
-    *cursor = src_list;
+    cursor->next = src_list;
 
-    return 0;
+    return dst_list;
 }
 
-static int avp_list_insert (pana_avp_node_t **dst_list,
-                            pana_avp_node_t * src_list)
+pana_avp_node_t *
+avp_list_insert (pana_avp_node_t * dst_list,
+                 pana_avp_node_t * src_list)
 {
-    pana_avp_node_t ** cursor = &src_list;
-
-    if (src_list == NULL) {
-        return 0
-    }
-
-    while(*cursor != NULL) {
-        cursor = &(*cursor->next);
-    }
-
-    *cursor = *dst_list;
-    *dst_list = src_list;
-
-    return 0;
+    return avp_list_append(src_list, dst_list);  // :D
 }
 
 /*
@@ -87,69 +110,77 @@ static int avp_list_insert (pana_avp_node_t **dst_list,
 /*
  * Parse a packet from an octet-stream
  */
-int
-parse_pana_packet (const uint8_t * const buf, uint16_t len,
-                  pana_packet_t * out)
+pana_packet_t *
+parse_pana_packet (bytebuff_t * buff)
 {
-    const unsigned char * p = buf;
-    pana_avp_node_t ** cursor = NULL;
+    const uint8_t * sx = bytebuff_data(buff);
+    const uint8_t * px = sx;
+    pana_avp_node_t * tmpavplist = NULL;
     pana_avp_node_t * tmp_node = NULL;
-
+    pana_packet_t * out = NULL;
+    
+    out = malloc(sizeof(pana_packet_t));
+    if (out == NULL) {
+        return NULL;
+    }
+    
     /*
      * Copy the fixed fields of the PANA converting each one
      * to host byte order except for the flags an reserved fields.
      */
-    out->pp_reserved       = ntohs(bytes_to_u16(p + PPL_OFFSET_RESERVED));
-    out->pp_message_length = ntohs(bytes_to_u16(p + PPL_OFFSET_MSG_LENGTH));
-    out->pp_flags          = ntohs(bytes_to_u16(p + PPL_OFFSET_FLAGS));
-    out->pp_message_type   = ntohs(bytes_to_u16(p + PPL_OFFSET_MSG_TYPE));
+    out->pp_reserved       = bytes_to_be16(px + PPL_OFFSET_RESERVED);
+    out->pp_message_length = bytes_to_be16(px + PPL_OFFSET_MSG_LENGTH);
+    out->pp_flags          = bytes_to_be16(px + PPL_OFFSET_FLAGS);
+    out->pp_message_type   = bytes_to_be16(px + PPL_OFFSET_MSG_TYPE);
 
-    out->pp_session_id = ntohl(bytes_to_u32(p + PPL_OFFSET_SESSION_ID));
-    out->pp_seq_number = ntohl(bytes_to_u32(p + PPL_OFFSET_SEQ_NUMBER));
-    p += PPL_OFFSET_AVP;
+    out->pp_session_id = bytes_to_be32(px + PPL_OFFSET_SESSION_ID);
+    out->pp_seq_number = bytes_to_be32(px + PPL_OFFSET_SEQ_NUMBER);
+    px += PPL_OFFSET_AVP;
 
-    if (out->pp_message_length != len) {
-        return -1;
+    if (out->pp_message_length != buff->used) {
+        free(out);
+        return NULL;
     }
 
     /*
      * Start processing the AVP's
      */
     out->pp_avp_list = NULL;
-    cursor = &(out->pp_avp_list);
+    
 
-    while (p < buf + len) {
+    while (px < sx + buff->used) {
 
-        tmp_node = malloc(sizeof(pana_avp_node_t));
+        tmp_node = zalloc(sizeof(pana_avp_node_t));
         if (!tmp_node) {
-            return -1;
+            avp_list_destroy(tmpavplist);
+            free(out);
+            return NULL;
         }
 
-        bzero(tmp_node, sizeof(pana_avp_node_t));
-
         tmp_node->next = NULL;
-        *cursor = tmp_node;
-        cursor = &(*cursor->next);
 
-        tmp_node->node.avp_code     = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_CODE));
-        tmp_node->node.avp_flags    = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_FLAGS));
-        tmp_node->node.avp_length   = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_LENGTH));
-        tmp_node->node.avp_reserved = ntohs(bytes_to_u16(p + PAL_OFFSET_AVP_RESERVED));
+        tmp_node->node.avp_code     = bytes_to_be16(px + PAL_OFFSET_AVP_CODE);
+        tmp_node->node.avp_flags    = bytes_to_be16(px + PAL_OFFSET_AVP_FLAGS);
+        tmp_node->node.avp_length   = bytes_to_be16(px + PAL_OFFSET_AVP_LENGTH);
+        tmp_node->node.avp_reserved = bytes_to_be16(px + PAL_OFFSET_AVP_RESERVED);
 
         if (tmp_node->node.avp_flags | F_AVP_FLAG_VENDOR) {
-            tmp_node->node.avp_vendor_id = ntohs(bytes_to_u32(p + PAL_OFFSET_AVP_VENDOR_ID));
-            p += PAL_OFFSET_AVP_VENDOR_VALUE;
+            tmp_node->node.avp_vendor_id = ntohs(bytes_to_be32(px + PAL_OFFSET_AVP_VENDOR_ID));
+            px += PAL_OFFSET_AVP_VENDOR_VALUE;
         } else {
-            p += PAL_OFFSET_AVP_VALUE;
+            px += PAL_OFFSET_AVP_VALUE;
         }
 
         tmp_node->node.avp_value = malloc(tmp_node->node.avp_length);
         if (!tmp_node->node.avp_value) {
+            free(tmp_node);
+            avp_list_destroy(tmpavplist);
             return -1;
         }
-        memcpy(tmp_node->node.avp_value, p, tmp_node->node.avp_length);
+        memcpy(tmp_node->node.avp_value, px, tmp_node->node.avp_length);
+        tmpavplist = avp_list_insert(tmpavplist, tmp_node);
 
-        p += tmp_node->node.avp_length;
+        px += tmp_node->node.avp_length;
     }
 
     return 0;
@@ -158,54 +189,56 @@ parse_pana_packet (const uint8_t * const buf, uint16_t len,
 /*
  * Transform a pana_packet_t structure in a byte-stream form
  */
-int
-serialize_pana_packet (const pana_packet_t * const pkt,
-                       unsigned char ** pout, unsigned int * len)
+bytebuff_t *
+serialize_pana_packet (const pana_packet_t * const pkt)
 {
-    unsigned char * out;
-    pana_avp_node_t ** cursor = NULL;
+    bytebuff_t * out;
+    uint8_t * pos;
+    pana_avp_node_t * cursor = NULL;
 
-    out = malloc(pkt->pp_message_length);
-    if (!out) {
-        return -1;
+    out = bytebuff_alloc(pkt->pp_message_length);
+    if (out == NULL) {
+        return NULL;
     }
 
-    *pout = out;
-    *len = pkt->pp_message_length;
+    pos = bytebuff_data(out);
+    pkt->pp_message_length;
 
-    buff_insert_be16(out + PPL_OFFSET_RESERVED,    pkt->pp_reserved);
-    buff_insert_be16(out + PPL_OFFSET_MSG_LENGTH,  pkt->pp_message_length);
-    buff_insert_be16(out + PPL_OFFSET_FLAGS,       pkt->pp_flags);
-    buff_insert_be16(out + PPL_OFFSET_MSG_TYPE,    pkt->pp_message_type);
-    buff_insert_be32(out + PPL_OFFSET_SESSION_ID,  pkt->pp_session_id);
-    buff_insert_be32(out + PPL_OFFSET_SEQ_NUMBER,  pkt->pp_seq_number);
-    out += PPL_OFFSET_AVP;
+    buff_insert_be16(pos + PPL_OFFSET_RESERVED,    pkt->pp_reserved);
+    buff_insert_be16(pos + PPL_OFFSET_MSG_LENGTH,  pkt->pp_message_length);
+    buff_insert_be16(pos + PPL_OFFSET_FLAGS,       pkt->pp_flags);
+    buff_insert_be16(pos + PPL_OFFSET_MSG_TYPE,    pkt->pp_message_type);
+    buff_insert_be32(pos + PPL_OFFSET_SESSION_ID,  pkt->pp_session_id);
+    buff_insert_be32(pos + PPL_OFFSET_SEQ_NUMBER,  pkt->pp_seq_number);
+    pos += PPL_OFFSET_AVP;
 
     /*
      * Start writing the AVPs
      */
-    cursor = &(pkt->pp_avp_list);
-    while (*cursor != NULL) {
-        buff_insert_be16(out + PAL_OFFSET_AVP_CODE,     cursor->node.avp_code);
-        buff_insert_be16(out + PAL_OFFSET_AVP_FLAGS,    cursor->node.avp_flags);
-        buff_insert_be16(out + PAL_OFFSET_AVP_LENGTH,   cursor->node.avp_length);
-        buff_insert_be16(out + PAL_OFFSET_AVP_RESERVED, cursor->node.avp_reserved);
+    cursor = pkt->pp_avp_list;
+    while (cursor != NULL) {
+        buff_insert_be16(pos + PAL_OFFSET_AVP_CODE,     cursor->node.avp_code);
+        buff_insert_be16(pos + PAL_OFFSET_AVP_FLAGS,    cursor->node.avp_flags);
+        buff_insert_be16(pos + PAL_OFFSET_AVP_LENGTH,   cursor->node.avp_length);
+        buff_insert_be16(pos + PAL_OFFSET_AVP_RESERVED, cursor->node.avp_reserved);
 
         if (cursor->node.avp_flags | F_AVP_FLAG_VENDOR) {
-            buff_insert_be32(out + PAL_OFFSET_AVP_VENDOR_ID, cursor->node.avp_vendor_id);
-            out += PAL_OFFSET_AVP_VENDOR_VALUE;
+            buff_insert_be32(pos + PAL_OFFSET_AVP_VENDOR_ID, cursor->node.avp_vendor_id);
+            pos += PAL_OFFSET_AVP_VENDOR_VALUE;
         } else {
-            out += PAL_OFFSET_AVP_VALUE;
+            pos += PAL_OFFSET_AVP_VALUE;
         }
 
-        memcpy(out, &cursor->node.avp_value, cursor->node.avp_length);
+        memcpy(pos, cursor->node.avp_value, cursor->node.avp_length);
         /*
          * Pad to dword boundary
          */
-        memcpy(out, PAD, pads_to_dword(cursor->node.avp_length));
-        out += round_to_dwords(cursor->node.avp_length);
-        cursor = &(*cursor->next);
+        memcpy(pos, PAD, pads_to_dword(cursor->node.avp_length));
+        pos += round_to_dwords(cursor->node.avp_length);
+        cursor =cursor->next;
     }
+    out->used = pos - bytebuff_data(out);
+    return out;
 }
 
 /*
@@ -219,14 +252,13 @@ construct_pana_packet (uint16_t flags,
                        pana_avp_node_t *avp_list)
 {
     pana_avp_node_t * cursor = NULL;
-    pana_packet_t * out = malloc(sizeof(pana_packet_t));
+    pana_packet_t * out = szalloc(pana_packet_t);
     uint32_t msg_length = 0;
 
     if (out == NULL) {
         return NULL;
     }
 
-    bzero(out, sizeof(pana_packet_t));
     out->pp_flags = flags;
     out->pp_message_type = message_type;
     out->pp_session_id = session_id;
@@ -254,28 +286,10 @@ construct_pana_packet (uint16_t flags,
 /*
  * Frees a pana_packet_t structure
  */
-int
+void
 free_pana_packet(pana_packet_t * pkt){
     avp_list_destroy(pkt->pp_avp_list);
     free(pkt);
-
-    return 0;
-}
-
-void libpana_pac_packet_handler (uint8_t * data, uint16_t length) {
-    pana_packet_t tpkt;
-    
-    if(parse_pana_packet(data, length, &tpkt)==0) {
-        pac_packet_handler(&tpkt);
-    }
-}
-
-void libpana_paa_packet_handler (uint8_t * data, uint16_t length) {
-    pana_packet_t tpkt;
-    
-    if(parse_pana_packet(data, length, &tpkt)==0) {
-        paa_packet_handler(&tpkt);
-    }
 }
 
 

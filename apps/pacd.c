@@ -7,54 +7,22 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <unistd.h>
+
+#include <string.h>
 
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 
-#include <libpana.h>
-#include <pacd.h>
+#include "common.h"
+#include "pacd.h"
 
 #define DECIMAL_BASE    10
 #define MAX_PORTN       0xFFFF
 
-/*
- * Misc util functions.
- */
-int str_to_ip_port(const char * const in_str,
-                   uint32_t * out_ip, uint16_t * out_port) {
-    unsigned long tmp_val = 0;
-    char * cpos = NULL;
-    
-    cpos = strchr(in_str, ':');
-    
-    if (cpos == NULL) {
-        /*
-         * Only the ip is specified. The port is implied to be the default one
-         */
-        *out_port = NAS_DEF_PORT;
-        if (inet_pton(AF_INET, in_str, out_ip)<=0) {
-            return -1;
-        }
-    } else {
-        /*
-         * Separate the ip and port sections
-         */
-        *cpos = '\0';
-        cpos++;
-        tmp_val = strtoul(cpos, &cpos, DECIMAL_BASE);
-        if (cpos != '\0' || tmp_val > MAX_PORTN) {
-            return -1;
-        }
-        *out_port = tmp_val;
-        if (inet_pton(AF_INET, in_str, out_ip)<=0) {
-            return -1;
-        }
-    }
-    return 0;
-}
 
 
 /*
@@ -62,9 +30,8 @@ int str_to_ip_port(const char * const in_str,
  */
 static char * pacd_config_file = "/etc/pana/pacd.conf";
 static char * dhcp_lease_file = "/var/lib/dhcp3/dhclient.leases";
-static uint16_t pacd_port = PACD_DEF_PORT;
-static uint32_t nas_v4_ip = 0;
-static uint16_t nas_port = NAS_DEF_PORT;
+
+static pac_config_t global_cfg;
 
 #define CMD_FLAG_P      0x0001
 #define CMD_FLAG_S      0x0002
@@ -97,9 +64,10 @@ static int process_args(char * argv[], int argc) {
                 puts("Incorrect port number: should be in 0-65365\n");
                 return ERR_BADARGS;
             }
+            global_cfg.pac.port = tmp_parsing_val;
         }
         else if ((strcmp(argv[ctoken++], "-s") == 0) && !(flags & CMD_FLAG_S)) {
-            if (str_to_ip_port(argv[ctoken++], &nas_v4_ip, &nas_port) < 0) {
+            if (!(global_cfg.paa = str_to_ip_port(argv[ctoken++]))) {
                 puts("Incorrect ip:port address\n");
                 return ERR_BADARGS;
             }
@@ -126,9 +94,20 @@ int process_config_files() {
      * TODO: implement parsing of config and dhcp-lease file
      */
     
+    global_cfg.pac = *(str_to_ip_port("192.168.1.100:5000"));
+    global_cfg.eap_cfg = malloc(sizeof(struct eap_peer_config));
+    global_cfg.eap_cfg->identity = "alex.antone@gmail.com";
+    global_cfg.eap_cfg->identity_len = strlen(global_cfg.eap_cfg->identity);
+    global_cfg.eap_cfg->password = "CLEARTEXT TEST PASSWORD";
+    global_cfg.eap_cfg->password_len = strlen(global_cfg.eap_cfg->password);
+               
+    
     return RES_CFG_FILES_OK;
 }
 
+void cleanup() {
+    free(global_cfg.eap_cfg);
+}
 
 int main(char * argv[], int argc)
 {
@@ -151,13 +130,13 @@ int main(char * argv[], int argc)
     memset(&pac_sockaddr, 0, sizeof pac_sockaddr);
     pac_sockaddr.sin_family = AF_INET;
     pac_sockaddr.sin_addr.s_addr = INADDR_ANY; 
-    pac_sockaddr.sin_port = htons(pacd_port);
+    pac_sockaddr.sin_port = htons(global_cfg->pac.port);
     
     
     memset(&nas_sockaddr, 0, sizeof nas_sockaddr);
     nas_sockaddr.sin_family = AF_INET;
-    nas_sockaddr.sin_addr.s_addr = nas_v4_ip;
-    nas_sockaddr.sin_port = htons(nas_port);
+    nas_sockaddr.sin_addr.s_addr = global_cfg->paa.ip;
+    nas_sockaddr.sin_port = htons(global_cfg->paa.port);
     
     if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
         exit(ERR_SOCK_ERROR);
@@ -178,8 +157,9 @@ int main(char * argv[], int argc)
     /*
      * Start the PANA session
      */
+    pac_session_init(global_cfg);
     
-    
+    cleanup();
     close(sockfd);
     return exit_code;
     

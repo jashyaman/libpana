@@ -12,9 +12,9 @@
  * See README and COPYING for more details.
  */
 
-#include "includes.h"
+#include "util/includes.h"
+#include "util/util.h"
 
-#include "util.h"
 #include "eap_common.h"
 
 /**
