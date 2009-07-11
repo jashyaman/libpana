@@ -14,47 +14,11 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
-#include <libpana.h>
-#include <nasd.h>
+#include "common.h"
+#include "nasd.h"
 
 #define DECIMAL_BASE    10
 #define MAX_PORTN       0xFFFF
-
-/*
- * Misc util functions.
- */
-int str_to_ip_port(const char * const in_str,
-                   uint32_t * out_ip, uint16_t * out_port) {
-    unsigned long tmp_val = 0;
-    char * cpos = NULL;
-    
-    cpos = strchr(in_str, ':');
-    
-    if (cpos == NULL) {
-        /*
-         * Only the ip is specified. The port is implied to be the default one
-         */
-        *out_port = NAS_DEF_PORT;
-        if (inet_pton(AF_INET, in_str, out_ip)<=0) {
-            return -1;
-        }
-    } else {
-        /*
-         * Separate the ip and port sections
-         */
-        *cpos = '\0';
-        cpos++;
-        tmp_val = strtoul(cpos, &cpos, DECIMAL_BASE);
-        if (cpos != '\0' || tmp_val > MAX_PORTN) {
-            return -1;
-        }
-        *out_port = tmp_val;
-        if (inet_pton(AF_INET, in_str, out_ip)<=0) {
-            return -1;
-        }
-    }
-    return 0;
-}
 
 
 /*

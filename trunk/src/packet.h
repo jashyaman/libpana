@@ -8,6 +8,23 @@
 #ifndef PACKET_H_
 #define PACKET_H_
 
+pana_avp_t * create_avp(uint16_t code, uint16_t flags, uint32_t vendorid,
+                        uint8_t * value, uint16_t length);
+
+void free_avp (pana_avp_t * avp);
+
+pana_avp_node_t * avp_node_create(const pana_avp_t * node);
+
+void avp_list_destroy(pana_avp_node_t *avp_list);
+
+pana_avp_node_t *
+avp_list_append (pana_avp_node_t * dst_list,
+                 pana_avp_node_t * src_list);
+
+pana_avp_node_t *
+avp_list_insert (pana_avp_node_t * dst_list,
+                 pana_avp_node_t * src_list);
+
 int parse_pana_packet (uint8_t * const buf, uint16_t len,
                        pana_packet_t * out);
 

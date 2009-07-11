@@ -9,20 +9,24 @@
 #define DEBUG_H_
 
 
-#define dbg_printf(level,fmt,args...) \
-    vprintf("[%s]: " fmt "\n", #level, ##args)
+#define dbg_printf(level,fmt, args...) \
+    printf("[%s]: " fmt "\n" , #level, ##args)
 
-
-#define dbg_hexdump(level, title, buff, len)\
+#define wpa_hexdump(level, title, buff, len)\
 {\
     printf("[%s] - " title "\n", #level);\
     int _ix;\
     for (_ix=0 ; _ix<len; _ix++ ) {\
-        printf("%02X ", (unsigned char) buff[_ix]);\
+        printf("%02X ", *(((char*) buff) + _ix));\
         if (((_ix + 1) & 0x0f) == 0)\
             puts("|");\
     }\
+    puts("");\
 }
+
+#define DEBUG(cmd) \
+    printf("#DEBUG: %s [%d]: %s\n", __FILE__, __LINE__, #cmd); \
+    cmd
 
 
 #endif /* DEBUG_H_ */
