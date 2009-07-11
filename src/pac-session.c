@@ -25,14 +25,14 @@ typedef enum {
 
 
 int pac_session_init(pac_config_t * pac_cfg){
-    cfg = *pac_cfg;
+    cfg = pac_cfg;
     pacs = malloc(sizeof(pana_session_t));
     pacs->cstate = PAC_STATE_CLOSED;
     pacs->pac_ip_port = cfg->pac;
     pacs->paa_ip_port = cfg->paa;  
 }
 
-bytebuff_t create_PCI() {
+bytebuff_t * create_PCI() {
     
     pana_packet_t *outpkt;
     bytebuff_t * ret;
@@ -71,13 +71,14 @@ int pac_process_packet(uint8_t * datain, size_t datalen,
             pacs->seq_tx = os_random();
             
             tmp_avp = create_avp(PAVP_V_IDENTITY, F_AVP_FLAG_VENDOR, PANA_VENDOR_UPB,
-                    cfg->eap_cfg->identity, cfg->eap_cfg->identity_len)
+                    cfg->eap_cfg->identity, cfg->eap_cfg->identity_len);
             
-            tmp_node->next
+            tmpavplist = avp_node_create(tmp_avp);
+            
             pkt_out = construct_pana_packet(PFLAG_S | PFLAG_R,
                         PMT_PAN, pacs->session_id, pacs->seq_tx, tmpavplist);
             
-            free(tmp_avp);
+            free_avp(tmp_avp);
             
         }
     }

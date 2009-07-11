@@ -31,6 +31,12 @@ typedef enum { FALSE = 0, TRUE = 1 } Boolean;
 
 
 
+#define host_to_be16 htons
+#define host_to_be32 htonl
+
+#define be_to_host16 ntohs
+#define be_to_host32 ntohl
+
 static inline u16 bytes_to_be16(const uint8_t * buff) {
     return (buff[0] << 8) | buff[1];
 }

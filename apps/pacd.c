@@ -5,25 +5,8 @@
  *      Author: alex
  */
 
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-#include <string.h>
-
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-
 #include "common.h"
 #include "pacd.h"
-
-#define DECIMAL_BASE    10
-#define MAX_PORTN       0xFFFF
-
-
 
 /*
  * Variables that will hold the PANA configuration settings.
@@ -49,6 +32,7 @@ static int process_args(char * argv[], int argc) {
     int ctoken = 1;       // skip command name
     char * pos = NULL;
     unsigned long tmp_parsing_val = 0;
+    ip_port_t * tmp_ipporv = NULL;
 
     while (ctoken < argc) {
         if ((strcmp(argv[ctoken++], "-h") == 0)) {
@@ -67,10 +51,12 @@ static int process_args(char * argv[], int argc) {
             global_cfg.pac.port = tmp_parsing_val;
         }
         else if ((strcmp(argv[ctoken++], "-s") == 0) && !(flags & CMD_FLAG_S)) {
-            if (!(global_cfg.paa = str_to_ip_port(argv[ctoken++]))) {
+            if (!(tmp_ipporv = str_to_ip_port(argv[ctoken++]))) {
                 puts("Incorrect ip:port address\n");
                 return ERR_BADARGS;
             }
+            global_cfg.paa = *tmp_ipporv;
+            free(tmp_ipporv);
         }
         else if ((strcmp(argv[ctoken++], "-c") == 0) && !(flags & CMD_FLAG_C)) {
             pacd_config_file = argv[ctoken++];
@@ -130,13 +116,13 @@ int main(char * argv[], int argc)
     memset(&pac_sockaddr, 0, sizeof pac_sockaddr);
     pac_sockaddr.sin_family = AF_INET;
     pac_sockaddr.sin_addr.s_addr = INADDR_ANY; 
-    pac_sockaddr.sin_port = htons(global_cfg->pac.port);
+    pac_sockaddr.sin_port = htons(global_cfg.pac.port);
     
     
     memset(&nas_sockaddr, 0, sizeof nas_sockaddr);
     nas_sockaddr.sin_family = AF_INET;
-    nas_sockaddr.sin_addr.s_addr = global_cfg->paa.ip;
-    nas_sockaddr.sin_port = htons(global_cfg->paa.port);
+    nas_sockaddr.sin_addr.s_addr = global_cfg.paa.ip;
+    nas_sockaddr.sin_port = htons(global_cfg.paa.port);
     
     if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
         exit(ERR_SOCK_ERROR);

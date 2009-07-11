@@ -11,7 +11,9 @@
 #include <netinet/in.h>
 
 #include "../include/libpana.h"
+#include "pana_common.h"
 #include "utils/util.h"
+#include "utils/bytebuff.h"
 
 static uint8_t PAD[4] = {0x00, 0x00, 0x00, 0x00};
 
@@ -51,7 +53,7 @@ void free_avp (pana_avp_t * avp) {
 }
 
 pana_avp_node_t * avp_node_create(const pana_avp_t * node) {
-    pana_avp_node_t * out = malloc(sizeof(pana_avp_node_t));
+    pana_avp_node_t * out = smalloc(pana_avp_node_t);
     if (out == NULL) {
         return NULL;
     }
@@ -69,7 +71,7 @@ void avp_list_destroy(pana_avp_node_t *avp_list)
 
     while (cursor != NULL) {
         tmp_head = cursor->next;
-        if (node.avp_value != NULL) {
+        if (cursor->node.avp_value != NULL) {
             free(cursor->node.avp_value);
         }
         free(cursor);
@@ -150,7 +152,7 @@ parse_pana_packet (bytebuff_t * buff)
 
     while (px < sx + buff->used) {
 
-        tmp_node = zalloc(sizeof(pana_avp_node_t));
+        tmp_node = szalloc(pana_avp_node_t);
         if (!tmp_node) {
             avp_list_destroy(tmpavplist);
             free(out);
@@ -172,10 +174,10 @@ parse_pana_packet (bytebuff_t * buff)
         }
 
         tmp_node->node.avp_value = malloc(tmp_node->node.avp_length);
-        if (!tmp_node->node.avp_value) {
+        if (tmp_node->node.avp_value == NULL) {
             free(tmp_node);
             avp_list_destroy(tmpavplist);
-            return -1;
+            return NULL;
         }
         memcpy(tmp_node->node.avp_value, px, tmp_node->node.avp_length);
         tmpavplist = avp_list_insert(tmpavplist, tmp_node);

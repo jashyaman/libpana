@@ -5,21 +5,8 @@
  *      Author: alex
  */
 
-#include <stdio.h>
-#include <stdint.h>
-#include <unistd.h>
-
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-
 #include "common.h"
 #include "nasd.h"
-
-#define DECIMAL_BASE    10
-#define MAX_PORTN       0xFFFF
-
 
 /*
  * Variables that will hold the PANA configuration settings.
