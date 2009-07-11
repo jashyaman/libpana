@@ -14,60 +14,67 @@
 
 #define F_AVP_FLAG_VENDOR 0x80
 
-enum pana_flags {
-    PFLAG_R     = 0x8000;       // Request
-    PFLAG_S     = 0x4000;       // Start
-    PFLAG_C     = 0x2000;       // Complete
-    PFLAG_A     = 0x1000;       // re-Authrtcation
-    PFLAG_P     = 0x0800;       // Ping
-    PFLAG_I     = 0x0400;       // IP Reconfiguration
-};
+#define PFLAGS_NONE  0x0000       // Cleared Flags
+#define PFLAG_R      0x8000       // Request
+#define PFLAG_S      0x4000       // Start
+#define PFLAG_C      0x2000       // Complete
+#define PFLAG_A      0x1000       // re-Authrtcation
+#define PFLAG_P      0x0800       // Ping
+#define PFLAG_I      0x0400       // IP Reconfiguration
 
 enum pana_message_types {
-    PMT_PCI     = 1;            // PANA-Client-Initiation
-    PMT_PAR     = 2;            // PANA-Auth-Request
-    PMT_PAN     = 2;            // PANA-Auth-Answer
-    PMT_PTR     = 3;            // PANA-Termination-Request
-    PMT_PTA     = 3;            // PANA-Termination-Answer
-    PMT_PNR     = 4;            // PANA-Notification-Request
-    PMT_PNA     = 4;            // PANA-Notification-Answer
+    PMT_PCI     = 1,            // PANA-Client-Initiation
+    PMT_PAR     = 2,            // PANA-Auth-Request
+    PMT_PAN     = 2,            // PANA-Auth-Answer
+    PMT_PTR     = 3,            // PANA-Termination-Request
+    PMT_PTA     = 3,            // PANA-Termination-Answer
+    PMT_PNR     = 4,            // PANA-Notification-Request
+    PMT_PNA     = 4             // PANA-Notification-Answer
 };
 
 enum pana_avp_codes {
-    PAVP_AUTH           = 1;
-    PAVP_EAP_PAYLOAD    = 2;
-    PAVP_INTEGRITY_ALG  = 3;
-    PAVP_KEY_ID         = 4;
-    PAVP_NONCE          = 5;
-    PAVP_PRF_ALG        = 6;
-    PAVP_RESULT_CODE    = 7;
-    PAVP_SESSION_LIFET  = 8;
-    PAVP_TERM_CAUSE     = 9;
+    PAVP_AUTH           = 1,
+    PAVP_EAP_PAYLOAD    = 2,
+    PAVP_INTEGRITY_ALG  = 3,
+    PAVP_KEY_ID         = 4,
+    PAVP_NONCE          = 5,
+    PAVP_PRF_ALG        = 6,
+    PAVP_RESULT_CODE    = 7,
+    PAVP_SESSION_LIFET  = 8,
+    PAVP_TERM_CAUSE     = 9,
+    
+    /* Vendor codes for UPB*/
+    PAVP_V_IDENTITY     = 1
+};
+
+enum {
+    PANA_VENDOR_RESERVED = 0,
+    PANA_VENDOR_UPB = 27355 /* University Politechnical of Bucharest */
 };
 
 enum pana_result_codes {
-    PANA_SUCCESS                 = 0;
-    PANA_AUTHENTICATION_REJECTED = 1;
-    PANA_AUTHORIZATION_REJECTED  = 2;
+    PANA_SUCCESS                 = 0,
+    PANA_AUTHENTICATION_REJECTED = 1,
+    PANA_AUTHORIZATION_REJECTED  = 2
 };
 
 enum pana_termination_causes {
-    PTC_LOGOUT          = 1;
-    PTC_ADMINISTRATIVE  = 4;
-    PTC_SESSION_TIMEOUT = 8;
+    PTC_LOGOUT          = 1,
+    PTC_ADMINISTRATIVE  = 4,
+    PTC_SESSION_TIMEOUT = 8
 };
 
 #define PANA_SESSION_MIN_TIMEOUT  60     // Session timeout permitted limits in seconds
 #define PANA_SESSION_MAX_TIMEOUT  36000 
 
 enum pana_avp_layout {
-    PAL_OFFSET_AVP_CODE         = 0;
-    PAL_OFFSET_AVP_FLAGS        = 2;
-    PAL_OFFSET_AVP_LENGTH       = 4;
-    PAL_OFFSET_AVP_RESERVED     = 6;
-    PAL_OFFSET_AVP_VALUE        = 8;
-    PAL_OFFSET_AVP_VENDOR_ID    = 8;
-    PAL_OFFSET_AVP_VENDOR_VALUE = 12;
+    PAL_OFFSET_AVP_CODE         = 0,
+    PAL_OFFSET_AVP_FLAGS        = 2,
+    PAL_OFFSET_AVP_LENGTH       = 4,
+    PAL_OFFSET_AVP_RESERVED     = 6,
+    PAL_OFFSET_AVP_VALUE        = 8,
+    PAL_OFFSET_AVP_VENDOR_ID    = 8,
+    PAL_OFFSET_AVP_VENDOR_VALUE = 12
 };
 
 typedef struct pana_avp_s {
@@ -87,13 +94,13 @@ typedef struct pana_avp_node_s {
 #define PANA_PKT_HEADER_SIZE 16
 
 enum pana_packet_layout {
-    PPL_OFFSET_RESERVED         = 0;
-    PPL_OFFSET_MSG_LENGTH       = 2;
-    PPL_OFFSET_FLAGS            = 4;
-    PPL_OFFSET_MSG_TYPE         = 6;
-    PPL_OFFSET_SESSION_ID       = 8;
-    PPL_OFFSET_SEQ_NUMBER       = 12;
-    PPL_OFFSET_AVP              = 16;
+    PPL_OFFSET_RESERVED         = 0,
+    PPL_OFFSET_MSG_LENGTH       = 2,
+    PPL_OFFSET_FLAGS            = 4,
+    PPL_OFFSET_MSG_TYPE         = 6,
+    PPL_OFFSET_SESSION_ID       = 8,
+    PPL_OFFSET_SEQ_NUMBER       = 12,
+    PPL_OFFSET_AVP              = 16
 };
 
 
@@ -131,13 +138,13 @@ typedef struct pana_sa_s {
 typedef struct ip_port_s {
     uint32_t ip;
     uint16_t port;      // UDP Port
-};
+} ip_port_t;
 
 typedef struct pana_sesion_s {
     uint32_t session_id;
     ip_port_t pac_ip_port;
     ip_port_t paa_ip_port;
-    pac_session_state_t cstate;
+    int cstate;
     uint32_t seq_rx;
     uint32_t seq_tx;
     pana_packet_t * pkt_cache;

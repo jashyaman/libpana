@@ -26,6 +26,8 @@
 <option id="gnu.c.compiler.option.include.paths.1290883692" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
 <listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/include}&quot;"/>
 <listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/apps}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/src}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/src/utils}&quot;"/>
 </option>
 <inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1003696869" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 </tool>

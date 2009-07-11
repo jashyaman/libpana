@@ -130,7 +130,6 @@ int process_config_files() {
     return RES_CFG_FILES_OK;
 }
 
-
 int main(char * argv[], int argc)
 {
     struct sockaddr_in nas_sockaddr;
@@ -139,6 +138,7 @@ int main(char * argv[], int argc)
     int pana_sockfd;
     int ep_sockfd;
     int aaa_sockfd;
+    
     
     int exit_code = 0;
     

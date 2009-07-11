@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 
 #include <libpana.h>
+#include "utils/util.h"
 
 static uint8_t * PAD = {0x00, 0x00, 0x00, 0x00};
 
@@ -25,23 +26,6 @@ static inline uint16_t pads_to_dword(const uint16_t length) {
     return (4 - (length & 0x003)) & 0x003;
 }
 
-static inline uint16_t bytes_to_u16 (const unsigned char * const buf) {
-    //return (buf[0] << 8 | buf[1]);
-    return *((uint16_t *) buf);
-}
-
-static inline uint32_t bytes_to_u32 (const unsigned char * const buf) {
-    //return (buf[0] << 24 | buf[1] << 16  | buf[2] << 8 | buf[3]);
-    return *((uint32_t *) buf);
-}
-
-static inline void serialize_u16 (uint8_t * out_buf, uint16_t val) {
-    *(uint16_t* out_buf) = val;
-}
-
-static inline void serialize_u32 (uint8_t * out_buf, uint32_t val) {
-    *(uint32_t* out_buf) = val;
-}
 
 /*
  * AVP list management functions
@@ -189,12 +173,12 @@ serialize_pana_packet (const pana_packet_t * const pkt,
     *pout = out;
     *len = pkt->pp_message_length;
 
-    serialize_u16(out + PPL_OFFSET_RESERVED,    htons(pkt->pp_reserved));
-    serialize_u16(out + PPL_OFFSET_MSG_LENGTH,  htons(pkt->pp_message_length));
-    serialize_u16(out + PPL_OFFSET_FLAGS,       htons(pkt->pp_flags));
-    serialize_u16(out + PPL_OFFSET_MSG_TYPE,    htons(pkt->pp_message_type));
-    serialize_u32(out + PPL_OFFSET_SESSION_ID,  htonl(pkt->pp_session_id));
-    serialize_u32(out + PPL_OFFSET_SEQ_NUMBER,  htonl(pkt->pp_seq_number));
+    buff_insert_be16(out + PPL_OFFSET_RESERVED,    pkt->pp_reserved);
+    buff_insert_be16(out + PPL_OFFSET_MSG_LENGTH,  pkt->pp_message_length);
+    buff_insert_be16(out + PPL_OFFSET_FLAGS,       pkt->pp_flags);
+    buff_insert_be16(out + PPL_OFFSET_MSG_TYPE,    pkt->pp_message_type);
+    buff_insert_be32(out + PPL_OFFSET_SESSION_ID,  pkt->pp_session_id);
+    buff_insert_be32(out + PPL_OFFSET_SEQ_NUMBER,  pkt->pp_seq_number);
     out += PPL_OFFSET_AVP;
 
     /*
@@ -202,13 +186,13 @@ serialize_pana_packet (const pana_packet_t * const pkt,
      */
     cursor = &(pkt->pp_avp_list);
     while (*cursor != NULL) {
-        serialize_u16(out + PAL_OFFSET_AVP_CODE,     htons(cursor->node.avp_code));
-        serialize_u16(out + PAL_OFFSET_AVP_FLAGS,    htons(cursor->node.avp_flags));
-        serialize_u16(out + PAL_OFFSET_AVP_LENGTH,   htons(cursor->node.avp_length));
-        serialize_u16(out + PAL_OFFSET_AVP_RESERVED, htons(cursor->node.avp_reserved));
+        buff_insert_be16(out + PAL_OFFSET_AVP_CODE,     cursor->node.avp_code);
+        buff_insert_be16(out + PAL_OFFSET_AVP_FLAGS,    cursor->node.avp_flags);
+        buff_insert_be16(out + PAL_OFFSET_AVP_LENGTH,   cursor->node.avp_length);
+        buff_insert_be16(out + PAL_OFFSET_AVP_RESERVED, cursor->node.avp_reserved);
 
         if (cursor->node.avp_flags | F_AVP_FLAG_VENDOR) {
-            serialize_u32(out + PAL_OFFSET_AVP_VENDOR_ID, htonl(cursor->node.avp_vendor_id));
+            buff_insert_be32(out + PAL_OFFSET_AVP_VENDOR_ID, cursor->node.avp_vendor_id);
             out += PAL_OFFSET_AVP_VENDOR_VALUE;
         } else {
             out += PAL_OFFSET_AVP_VALUE;
@@ -234,7 +218,7 @@ construct_pana_packet (uint16_t flags,
                        uint32_t seq_number,
                        pana_avp_node_t *avp_list)
 {
-    pana_avp_node_t ** cursor = NULL;
+    pana_avp_node_t * cursor = NULL;
     pana_packet_t * out = malloc(sizeof(pana_packet_t));
     uint32_t msg_length = 0;
 
@@ -254,12 +238,12 @@ construct_pana_packet (uint16_t flags,
      */
     msg_length += PPL_OFFSET_AVP;
 
-    cursor = &avp_list;
-    while (*cursor != NULL) {
+    cursor = avp_list;
+    while (cursor != NULL) {
         msg_length += (cursor->node.avp_flags | F_AVP_FLAG_VENDOR) ?
                 PAL_OFFSET_AVP_VENDOR_VALUE : PAL_OFFSET_AVP_VALUE;
         msg_length += round_to_dwords(cursor->node.avp_length);
-        cursor = &(*cursor->next);
+        cursor = cursor->next;
     }
 
     out->pp_message_length = msg_length;
