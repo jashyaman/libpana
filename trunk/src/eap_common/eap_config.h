@@ -18,6 +18,7 @@
 /**
  * struct eap_peer_config - EAP peer configuration/credentials
  */
+
 struct eap_peer_config {
 	u8 *identity;
 	size_t identity_len;

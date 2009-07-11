@@ -7,6 +7,7 @@
 
 #include "common.h"
 
+
 /*
  * Misc util functions.
  */
@@ -26,7 +27,7 @@ ip_port_t * str_to_ip_port(const char * const in_str) {
         /*
          * Only the ip is specified. The port is implied to be the default one
          */
-        out->port = NAS_DEF_PORT;
+        out->port = 0;
         if (inet_pton(AF_INET, in_str, &out->ip) <= 0) {
             res = -1;
         }

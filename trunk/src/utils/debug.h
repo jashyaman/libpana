@@ -12,7 +12,7 @@
 #define dbg_printf(level,fmt, args...) \
     printf("[%s]: " fmt "\n" , #level, ##args)
 
-#define wpa_hexdump(level, title, buff, len)\
+#define dbg_hexdump(level, title, buff, len)\
 {\
     printf("[%s] - " title "\n", #level);\
     int _ix;\

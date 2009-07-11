@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include "utils/util.h"
 
-#include "eap_common/eap_config.h"
+//#include "eap_common/eap_config.h"
 
 #define F_AVP_FLAG_VENDOR 0x8000
 #define F_AVP_FLAG_CLEARED 0x0000
@@ -122,11 +122,6 @@ typedef struct pana_packet_s {
      */
     pana_avp_node_t *pp_avp_list;
 } pana_packet_t;
-
-typedef struct ip_port_s {
-    uint32_t ip;
-    uint16_t port;      // UDP Port
-} ip_port_t;
 
 /*
  * Session definitions

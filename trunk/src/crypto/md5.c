@@ -12,8 +12,8 @@
  * See README and COPYING for more details.
  */
 
-#include "util/includes.h"
-#include "util/util.h"
+#include "utils/includes.h"
+#include "utils/util.h"
 
 #include "md5.h"
 

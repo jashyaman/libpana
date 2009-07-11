@@ -12,7 +12,7 @@
 
 
 uint8_t * bytebuff_data(bytebuff_t * buff) {
-    return buff + 1;
+    return (uint8_t *)(buff + 1);
 }
 
 

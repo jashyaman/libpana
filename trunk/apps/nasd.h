@@ -8,10 +8,6 @@
 #ifndef NASD_H_
 #define NASD_H_
 
-#define NAS_DEF_PORT    7001
-#define AAA_DEF_PORT    8001
-#define EP_DEF_PORT     9001
-
 #define RES_ARGS_OK             0x0000
 #define RES_CFG_FILES_OK        0x0000
 
@@ -23,9 +19,5 @@
 #define ERR_CONNECT_SOCK        0x1005
 
 #define NFO_HELP_REQ            0x2001
-
-
-#define DEBUG(cmd) printf("#DEBUG# - %s [%d]: %s\n", __FILE__, __LINE__, #cmd); \
-                   cmd
 
 #endif /* NASD_H_ */

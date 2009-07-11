@@ -8,6 +8,9 @@
 #ifndef PACKET_H_
 #define PACKET_H_
 
+#include "pana_common.h"
+
+
 pana_avp_t * create_avp(uint16_t code, uint16_t flags, uint32_t vendorid,
                         uint8_t * value, uint16_t length);
 
@@ -28,8 +31,9 @@ avp_list_insert (pana_avp_node_t * dst_list,
 int parse_pana_packet (uint8_t * const buf, uint16_t len,
                        pana_packet_t * out);
 
-int serialize_pana_packet (const pana_packet_t * const pkt,
-                           unsigned char ** pout, unsigned int * len);
+bytebuff_t *
+serialize_pana_packet (const pana_packet_t * const pkt);
+
 
 pana_packet_t *
 construct_pana_packet (uint16_t flags,
