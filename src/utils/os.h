@@ -379,6 +379,16 @@ int os_snprintf(char *str, size_t size, const char *format, ...);
 
 #else /* OS_NO_C_LIB_DEFINES */
 
+#ifndef os_fopen
+#define os_fopen(f, m) fopen((f), (m))
+#endif
+#ifndef os_fgets
+#define os_fgets(s, n, f) fgets((s), (n), (f))
+#endif
+#ifndef os_fclose
+#define os_fclose(f) fclose((f))
+#endif
+
 #ifndef os_malloc
 #define os_malloc(s) malloc((s))
 #endif

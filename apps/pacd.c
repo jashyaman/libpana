@@ -80,7 +80,7 @@ int process_config_files() {
      * TODO: implement parsing of config and dhcp-lease file
      */
     
-    global_cfg.pac = *(str_to_ip_port("192.168.1.100:5000"));
+    global_cfg.pac = *(str_to_ip_port("192.168.1.102:5000"));
     global_cfg.eap_cfg = malloc(sizeof(struct eap_peer_config));
     global_cfg.eap_cfg->identity = "alex.antone@gmail.com";
     global_cfg.eap_cfg->identity_len = strlen(global_cfg.eap_cfg->identity);
