@@ -11,12 +11,8 @@
 /*
  * Variables that will hold the PANA configuration settings.
  */
+static paa_config_t global_cfg;
 static char * nasd_config_file = "/etc/pana/nasd.conf";
-static uint16_t nas_listenport = NAS_DEF_PORT;
-static uint32_t aaa_v4_ip = 0;
-static uint16_t aaa_port = AAA_DEF_PORT;
-static uint32_t ep_v4_ip = 0;
-static uint16_t ep_port = EP_DEF_PORT;
 
 #define CMD_FLAG_P      0x0001
 #define CMD_FLAG_S      0x0002
@@ -34,6 +30,7 @@ static int process_args(char * argv[], int argc) {
     int ctoken = 1;       // skip command name
     char * pos = NULL;
     unsigned long tmp_parsing_val = 0;
+    ip_port_t * tmp_ipporv = NULL;
 
     while (ctoken < argc) {
         if ((strcmp(argv[ctoken++], "-h") == 0)) {
@@ -49,18 +46,18 @@ static int process_args(char * argv[], int argc) {
                 puts("Incorrect port number: should be in 0-65365\n");
                 return ERR_BADARGS;
             }
+            global_cfg.paa.port = tmp_parsing_val;
         }
         else if ((strcmp(argv[ctoken++], "-e") == 0) && !(flags & CMD_FLAG_E)) {
-            if (str_to_ip_port(argv[ctoken++], &ep_v4_ip, &ep_port) < 0) {
-                puts("Incorrect EP ip:port address\n");
+            if (!(tmp_ipporv = str_to_ip_port(argv[ctoken++]))) {
+                puts("Incorrect ip:port address\n");
                 return ERR_BADARGS;
             }
+            global_cfg.ep = *tmp_ipporv;
+            free(tmp_ipporv);
         }
         else if ((strcmp(argv[ctoken++], "-c") == 0) && !(flags & CMD_FLAG_C)) {
             nasd_config_file = argv[ctoken++];
-        }
-        else if ((strcmp(argv[ctoken++], "-d") == 0) && !(flags & CMD_FLAG_D)) {
-            dhcp_lease_file = argv[ctoken++];
         }
         else {
             puts("Bad or duplicate arguments.\n");
@@ -77,20 +74,12 @@ int process_config_files() {
     /*
      * TODO: implement parsing of config and dhcp-lease file
      */
-    
+    global_cfg.ep = *str_to_ip_port("192.168.1.100:9800");
     return RES_CFG_FILES_OK;
 }
 
 int main(char * argv[], int argc)
 {
-    struct sockaddr_in nas_sockaddr;
-    struct sockaddr_in aaa_sockaddr;
-    struct sockaddr_in ep_sockaddr;
-    int pana_sockfd;
-    int ep_sockfd;
-    int aaa_sockfd;
-    
-    
     int exit_code = 0;
     
     exit_code = process_args(argv, argc);
@@ -102,57 +91,7 @@ int main(char * argv[], int argc)
     if (exit_code > ERR_CODE) {
         exit(exit_code);
     }
-
-    memset(&pac_sockaddr, 0, sizeof pac_sockaddr);
-    nas_sockaddr.sin_family = AF_INET;
-    nas_sockaddr.sin_addr.s_addr = INADDR_ANY; 
-    nas_sockaddr.sin_port = htons(pacd_port);
     
-    memset(&aaa_sockaddr, 0, sizeof aaa_sockaddr);
-    aaa_sockaddr.sin_family = AF_INET;
-    aaa_sockaddr.sin_addr.s_addr = aaa_v4_ip;
-    aaa_sockaddr.sin_port = htons(aaa_port);
-
-    memset(&ep_sockaddr, 0, sizeof ep_sockaddr);
-    ep_sockaddr.sin_family = AF_INET;
-    ep_sockaddr.sin_addr.s_addr = ep_v4_ip;
-    ep_sockaddr.sin_port = htons(ep_port);
-    
-    /*
-     * Setup the PANA socket
-     */
-    if ((pana_sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
-        exit(ERR_SOCK_ERROR);
-    }
-    
-
-    if ((bind(pana_sockfd, &nas_sockaddr, sizeof nas_sockaddr)) < 0) {
-        close(pana_sockfd);
-        exit(ERR_BIND_SOCK);
-    }
-    
-    /*
-     * Setup the AAA socket
-     * TODO:
-     */
-    
-    
-    /*
-     * Setup the EP socket
-     * TODO:
-     */
-    
-  
-    /*
-     * Start the PANA session
-     */
-    
-    
-    
-    close(pana_sockfd);
-    close(aaa_sockfd);
-    close(ep_sockfd);
-    
-    return exit_code;
+    exit(exit_code);
     
 }

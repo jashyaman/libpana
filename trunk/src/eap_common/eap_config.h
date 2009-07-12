@@ -19,12 +19,12 @@
  * struct eap_peer_config - EAP peer configuration/credentials
  */
 
-struct eap_peer_config {
+typedef struct eap_peer_config {
 	u8 *identity;
 	size_t identity_len;
 
 	u8 *password;
 	size_t password_len;
-};
+} eap_peer_config_t;
 
 #endif /* EAP_CONFIG_H */

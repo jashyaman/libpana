@@ -12,6 +12,7 @@
 #define ERR_SOCK_ERROR          0x1003
 #define ERR_BIND_SOCK           0x1004
 #define ERR_CONNECT_SOCK        0x1005
+#define ERR_NONBLOK_SOCK        0x1006
 
 
 typedef struct ip_port_s {
@@ -20,13 +21,13 @@ typedef struct ip_port_s {
 } ip_port_t;
 
 
-struct eap_peer_config {
+typedef struct eap_peer_config {
         uint8_t *identity;
         size_t identity_len;
 
         uint8_t *password;
         size_t password_len;
-};
+} eap_peer_config_t;
 
 /* PaC global config */
 typedef struct pac_config_s {
@@ -39,8 +40,6 @@ typedef struct pac_config_s {
     uint16_t rtx_interval;
     uint8_t  rtx_max_count;
     uint8_t  reauth_interval; /* start reauth at sess_lifetime*(reauth_interval/100) */
-    
-    
     
 } pac_config_t;
 

@@ -5,20 +5,21 @@
  *      Author: alex
  */
 
+#include <sys/select.h>
+#include <fcntl.h>
+
 #include "utils/includes.h"
 #include "utils/util.h"
 #include "utils/bytebuff.h"
 
 #include "libpana.h"
-#include "packet.h"
+#include "pana_common/packet.h"
 
 
 /* pac context data */
 typedef struct pac_ctx {
     rtx_timer_t rtimer;
-    uint16_t rtx_interval;
-    uint8_t  rtx_max_count;
-    uint8_t  reauth_interval;
+    const pac_config_t * pacglobal;   //we want this to be readonly
 } pac_ctx_t;
 
 
@@ -27,7 +28,8 @@ static pana_session_t * pacs;
 static pac_config_t * cfg;
 
 typedef enum {
-    PAC_STATE_CLOSED   
+    PAC_STATE_CLOSED,
+    PAC_STATE_TERMINATED
 } pac_session_state_t;
 
 
@@ -42,10 +44,9 @@ int pac_session_init(pac_config_t * pac_cfg){
     pacs->pac_ip_port = cfg->pac;
     pacs->paa_ip_port = cfg->paa;
     
-    ctx->rtx_interval = pac_cfg->rtx_interval;
-    ctx->reauth_interval = pac_cfg->reauth_interval;
-    ctx->rtx_max_count = pac_cfg->rtx_max_count;
+    ctx->pacglobal = pac_cfg;
     ctx->rtimer.enabled = FALSE;
+    
     
 }
 
@@ -68,6 +69,8 @@ bytebuff_t * create_PCI() {
 bytebuff_t *
 pac_process_packet(bytebuff_t * datain) {
     pac_ctx_t * ctx =  pacs->ctx;
+    pac_config_t * pacglobal = ctx->pacglobal;
+    
     bytebuff_t * respdata;
     pana_packet_t * pkt_in = NULL;
     pana_packet_t * pkt_out = NULL;
@@ -115,7 +118,7 @@ pac_process_packet(bytebuff_t * datain) {
     pacs->pkt_cache = bytebuff_dup(respdata);
 
     ctx->rtimer.count++;
-    ctx->rtimer.deadline = time(NULL) + ctx->rtx_interval;
+    ctx->rtimer.deadline = time(NULL) + pacglobal->rtx_interval;
     ctx->rtimer.enabled = TRUE;
     
     
@@ -124,21 +127,25 @@ pac_process_packet(bytebuff_t * datain) {
 
 int
 pac_main(const pac_config_t * const global_cfg) {
+    cfg = global_cfg;
     struct sockaddr_in pac_sockaddr;
     struct sockaddr_in nas_sockaddr;
     int sockfd;
+    fd_set read_flags;
+    struct timeval selwait = {0 ,0};  //Nonblocking select
+    bytebuff_t * tmpbuff = NULL;
 
     
     bzero(&pac_sockaddr, sizeof pac_sockaddr);
     pac_sockaddr.sin_family = AF_INET;
     pac_sockaddr.sin_addr.s_addr = INADDR_ANY; 
-    pac_sockaddr.sin_port = htons(global_cfg->pac.port);
+    pac_sockaddr.sin_port = cfg->pac.port;
     
     
     bzero(&nas_sockaddr, sizeof nas_sockaddr);
     nas_sockaddr.sin_family = AF_INET;
-    nas_sockaddr.sin_addr.s_addr = global_cfg->paa.ip;
-    nas_sockaddr.sin_port = htons(global_cfg->paa.port);
+    nas_sockaddr.sin_addr.s_addr = cfg->paa.ip;
+    nas_sockaddr.sin_port = cfg->paa.port;
     
     if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
         return ERR_SOCK_ERROR;
@@ -155,12 +162,46 @@ pac_main(const pac_config_t * const global_cfg) {
         close(sockfd);
         return ERR_CONNECT_SOCK;
     }
+
+    /*
+     * Setup the sockfd (nonblocking)
+     */
+       
+    if (fcntl(sockfd,F_SETFL, fcntl(sockfd,F_GETFL,0) | O_NONBLOCK) < 1) {
+        close(sockfd);
+        DEBUG("Could not set the socket as nonblocking");
+        dbg_printf(ERR_SETFL_NONBLOCKING,"Could not set the socket as nonblocking");
+        return ERR_NONBLOK_SOCK;
+    }
+    
+    FD_ZERO(&read_flags);
+    FD_SET(sockfd, &read_flags);
     
     /*
      * Start the PANA session
      */
-    pac_session_init(global_cfg);
-    create_PCI();
+    pac_session_init(cfg);
+    
+    tmpbuff = create_PCI();
+    if (tmpbuff != NULL) {
+        send(sockfd, bytebuff_data(tmpbuff), tmpbuff->used, 0);
+        free_bytebuff(tmpbuff);
+    }
+    
+    while(pacs->cstate != PAC_STATE_TERMINATED) {
+        while(select(sockfd + 1, &read_flags, NULL, NULL, NULL) > 0) {
+            
+        }
+        /* while pkts available() {
+         *      out_pkt = process_pkt(pkt_in)
+         *      if (outpkt != NULL) {
+         *      send(outpkt)
+         *  }
+         */ 
+        /* check rtx_timers -> if deadline expired RTX() */
+        
+        
+    }
     
     close(sockfd);
 }

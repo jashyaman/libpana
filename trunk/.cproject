@@ -19,15 +19,19 @@
 <folderInfo id="cdt.managedbuild.toolchain.gnu.base.814555092.1256199546" name="/" resourcePath="">
 <toolChain id="cdt.managedbuild.toolchain.gnu.base.829525038" name="cdt.managedbuild.toolchain.gnu.base" superClass="cdt.managedbuild.toolchain.gnu.base">
 <targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.ELF" id="cdt.managedbuild.target.gnu.platform.base.373663984" name="Debug Platform" osList="linux,hpux,aix,qnx" superClass="cdt.managedbuild.target.gnu.platform.base"/>
-<builder id="cdt.managedbuild.target.gnu.builder.base.2033925575" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.target.gnu.builder.base"/>
+<builder id="cdt.managedbuild.target.gnu.builder.base.2033925575" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.target.gnu.builder.base">
+<outputEntries>
+<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="outputPath" name=""/>
+</outputEntries>
+</builder>
 <tool id="cdt.managedbuild.tool.gnu.archiver.base.621809725" name="GCC Archiver" superClass="cdt.managedbuild.tool.gnu.archiver.base"/>
 <tool id="cdt.managedbuild.tool.gnu.cpp.compiler.base.2140780611" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.base"/>
 <tool id="cdt.managedbuild.tool.gnu.c.compiler.base.2075818365" name="GCC C Compiler" superClass="cdt.managedbuild.tool.gnu.c.compiler.base">
 <option id="gnu.c.compiler.option.include.paths.1290883692" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
-<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/include}&quot;"/>
-<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/apps}&quot;"/>
-<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/src}&quot;"/>
-<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/src/utils}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/libpana/include}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/libpana/apps}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/libpana/src}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/libpana/src/utils}&quot;"/>
 </option>
 <inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1003696869" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 </tool>
@@ -39,10 +43,19 @@
 </tool>
 <tool id="cdt.managedbuild.tool.gnu.cpp.linker.base.148871483" name="GCC C++ Linker" superClass="cdt.managedbuild.tool.gnu.cpp.linker.base"/>
 <tool id="cdt.managedbuild.tool.gnu.assembler.base.1576922507" name="GCC Assembler" superClass="cdt.managedbuild.tool.gnu.assembler.base">
+<option id="gnu.both.asm.option.include.paths.1015067469" superClass="gnu.both.asm.option.include.paths" valueType="includePath">
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/libpana/include}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/libpana/apps}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/libpana/src}&quot;"/>
+<listOptionValue builtIn="false" value="&quot;${workspace_loc:/libpana/libpana/src/utils}&quot;"/>
+</option>
 <inputType id="cdt.managedbuild.tool.gnu.assembler.input.1859911440" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
 </tool>
 </toolChain>
 </folderInfo>
+<sourceEntries>
+<entry excluding="pana_common" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+</sourceEntries>
 </configuration>
 </storageModule>
 <storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>

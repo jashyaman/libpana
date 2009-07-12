@@ -41,7 +41,7 @@ ip_port_t * str_to_ip_port(const char * const in_str) {
         if (cpos != '\0' || tmp_val > MAX_PORTN) {
             res = -1;
         }
-        out->port = tmp_val;
+        out->port = htons(tmp_val);
         if (inet_pton(AF_INET, in_str, &out->ip) <= 0) {
             res = -1;
         }

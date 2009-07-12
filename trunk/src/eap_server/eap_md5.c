@@ -12,10 +12,12 @@
  * See README and COPYING for more details.
  */
 
-#include "util/includes.h"
+#include "utils/includes.h"
+#include "utils/util.h"
 
+#include "eap_common/eap_common.h"
+#include "eap_common/eap_config.h"
 #include "eap_common/chap.h"
-
 
 #define CHALLENGE_LEN 16
 
@@ -24,6 +26,37 @@ struct eap_md5_data {
 	enum { CONTINUE, SUCCESS, FAILURE } state;
 };
 
+static void * eap_md5_get_peer_config(eap_peer_config_t * cfg, char* passfile) {
+    FILE *f;
+    char *buf, *px;
+    Boolean found = FALSE;
+
+    f = os_fopen(passfile, "rb");
+    if (f == NULL)
+        return NULL;
+
+    buf = os_zalloc(256);
+    if (buf == NULL) {
+        os_fclose(f);
+        return NULL;
+    }
+
+    while(os_fgets(buf, 256, f) || found) {
+        px = buf;
+        if (0 == os_strncmp(cfg->identity, px, cfg->identity_len) &&
+                px[cfg->identity_len] == ':') {
+            px += cfg->identity_len + 1;
+            found = TRUE;
+            cfg->password = os_strdup(px);
+            cfg->password_len = (os_strlen(px));
+        }
+    }
+    os_fclose(f);
+    os_free(buf);
+    
+    /* if not found the password will remain empty */
+    return cfg;
+}
 
 static void * eap_md5_init()
 {
@@ -33,6 +66,8 @@ static void * eap_md5_init()
 	if (data == NULL)
 		return NULL;
 	data->state = CONTINUE;
+	
+	
 
 	return data;
 }
@@ -140,7 +175,7 @@ static Boolean eap_md5_isDone(void *priv)
 }
 
 
-static Boolean eap_md5_isSuccess(struct eap_sm *sm, void *priv)
+static Boolean eap_md5_isSuccess(void *priv)
 {
 	struct eap_md5_data *data = priv;
 	return data->state == SUCCESS;
