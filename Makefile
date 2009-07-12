@@ -35,7 +35,7 @@ nasd: $(PAA_SRC)
 	$(CC) $(PACINCLUDES) $(PAC_SRC) -o nasd
 
 clean:
-	$(RM) *.o pacd nasd
+	-$(RM) *.o pacd nasd
 
 .PHONY: all clean pacd nasd
 

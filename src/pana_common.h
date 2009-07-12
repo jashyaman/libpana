@@ -10,6 +10,7 @@
 
 #include <sys/types.h>
 #include "utils/util.h"
+#include "utils/bytebuff.h"
 
 //#include "eap_common/eap_config.h"
 
@@ -145,8 +146,7 @@ typedef struct pana_sesion_s {
     int cstate;
     uint32_t seq_rx;
     uint32_t seq_tx;
-    pana_packet_t * pkt_cache;
-    uint32_t rtx_interval;
+    bytebuff_t * pkt_cache;
     uint32_t session_lifetime;
     pana_sa_t * sa;
     void * ctx;         // Other specifi options for PaC and PAA
@@ -156,10 +156,9 @@ typedef struct pana_sesion_s {
 
 typedef struct {
     uint8_t count;
-    uint16_t interval;
     time_t deadline; // Deadline in Epoch :)
     Boolean enabled;
-} rtx_timer;
+} rtx_timer_t;
 
 
 #endif /* PANA_COMMON_H_ */

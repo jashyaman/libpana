@@ -10,10 +10,9 @@
 #include <string.h>
 #include <netinet/in.h>
 
+
 #include "../include/libpana.h"
-#include "pana_common.h"
-#include "utils/util.h"
-#include "utils/bytebuff.h"
+#include "packet.h"
 
 static uint8_t PAD[4] = {0x00, 0x00, 0x00, 0x00};
 
