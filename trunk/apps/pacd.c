@@ -92,15 +92,13 @@ int process_config_files() {
 }
 
 void cleanup() {
-    free(global_cfg.eap_cfg);
+    if (global_cfg.eap_cfg) {
+        free(global_cfg.eap_cfg);
+    }
 }
 
 int main(char * argv[], int argc)
 {
-    struct sockaddr_in pac_sockaddr;
-    struct sockaddr_in nas_sockaddr;
-    int sockfd;
-    
     int exit_code = 0;
     
     exit_code = process_args(argv, argc);
@@ -113,40 +111,9 @@ int main(char * argv[], int argc)
         exit(exit_code);
     }
 
-    memset(&pac_sockaddr, 0, sizeof pac_sockaddr);
-    pac_sockaddr.sin_family = AF_INET;
-    pac_sockaddr.sin_addr.s_addr = INADDR_ANY; 
-    pac_sockaddr.sin_port = htons(global_cfg.pac.port);
-    
-    
-    memset(&nas_sockaddr, 0, sizeof nas_sockaddr);
-    nas_sockaddr.sin_family = AF_INET;
-    nas_sockaddr.sin_addr.s_addr = global_cfg.paa.ip;
-    nas_sockaddr.sin_port = htons(global_cfg.paa.port);
-    
-    if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
-        exit(ERR_SOCK_ERROR);
-    }
-    
+    exit_code = pac_main(&global_cfg);
 
-    if ((bind(sockfd, &pac_sockaddr, sizeof pac_sockaddr)) < 0) {
-        close(sockfd);
-        exit(ERR_BIND_SOCK);
-    }
-
-    
-    if ((connect(sockfd, &nas_sockaddr, sizeof nas_sockaddr)) < 0) {
-        close(sockfd);
-        exit(ERR_CONNECT_SOCK);
-    }
-    
-    /*
-     * Start the PANA session
-     */
-    pac_session_init(global_cfg);
-    
     cleanup();
-    close(sockfd);
-    return exit_code;
     
+    exit(exit_code);
 }

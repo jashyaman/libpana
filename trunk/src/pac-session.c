@@ -13,6 +13,13 @@
 #include "packet.h"
 
 
+/* pac context data */
+typedef struct pac_ctx {
+    rtx_timer_t rtimer;
+    uint16_t rtx_interval;
+    uint8_t  rtx_max_count;
+    uint8_t  reauth_interval;
+} pac_ctx_t;
 
 
 
@@ -25,11 +32,21 @@ typedef enum {
 
 
 int pac_session_init(pac_config_t * pac_cfg){
+    pac_ctx_t * ctx;
     cfg = pac_cfg;
-    pacs = malloc(sizeof(pana_session_t));
+    pacs = szalloc(pana_session_t);
+    pacs->ctx = szalloc(pac_ctx_t);
+    
+    ctx = pacs->ctx;
     pacs->cstate = PAC_STATE_CLOSED;
     pacs->pac_ip_port = cfg->pac;
-    pacs->paa_ip_port = cfg->paa;  
+    pacs->paa_ip_port = cfg->paa;
+    
+    ctx->rtx_interval = pac_cfg->rtx_interval;
+    ctx->reauth_interval = pac_cfg->reauth_interval;
+    ctx->rtx_max_count = pac_cfg->rtx_max_count;
+    ctx->rtimer.enabled = FALSE;
+    
 }
 
 bytebuff_t * create_PCI() {
@@ -48,18 +65,21 @@ bytebuff_t * create_PCI() {
     return ret;
 }
 
-int pac_process_packet(uint8_t * datain, size_t datalen,
-                   uint8_t ** resp, size_t * resplen) {
-    
-    int res;
+bytebuff_t *
+pac_process_packet(bytebuff_t * datain) {
+    pac_ctx_t * ctx =  pacs->ctx;
+    bytebuff_t * respdata;
     pana_packet_t * pkt_in = NULL;
     pana_packet_t * pkt_out = NULL;
     pana_avp_node_t * tmpavplist = NULL;
     pana_avp_t * tmp_avp = NULL;
     
-    res = parse_pana_packet(datain, datalen, pkt_in);
-    if (res < 0) {
-        dbg_printf(MSG_ERROR,"Pachet is invalid");
+    
+    
+    dbg_hexdump(PKT_RECVD, "Packet-contents:", bytebuff_data(datain), datain->size);
+    pkt_in = parse_pana_packet(datain);
+    if (pkt_in == NULL) {
+        dbg_printf(MSG_ERROR,"Packet is invalid");
     }
     
     switch(pacs->cstate) {
@@ -80,9 +100,69 @@ int pac_process_packet(uint8_t * datain, size_t datalen,
             
             free_avp(tmp_avp);
             
+            respdata = serialize_pana_packet(pkt_out);
+            free_pana_packet(pkt_out);
         }
     }
     
+    if (respdata == NULL) {
+        return NULL;
+    }
+    
+    if (pacs->pkt_cache) {
+        free(pacs->pkt_cache);
+    }
+    pacs->pkt_cache = bytebuff_dup(respdata);
+
+    ctx->rtimer.count++;
+    ctx->rtimer.deadline = time(NULL) + ctx->rtx_interval;
+    ctx->rtimer.enabled = TRUE;
+    
+    
+    
+}
+
+int
+pac_main(const pac_config_t * const global_cfg) {
+    struct sockaddr_in pac_sockaddr;
+    struct sockaddr_in nas_sockaddr;
+    int sockfd;
+
+    
+    bzero(&pac_sockaddr, sizeof pac_sockaddr);
+    pac_sockaddr.sin_family = AF_INET;
+    pac_sockaddr.sin_addr.s_addr = INADDR_ANY; 
+    pac_sockaddr.sin_port = htons(global_cfg->pac.port);
+    
+    
+    bzero(&nas_sockaddr, sizeof nas_sockaddr);
+    nas_sockaddr.sin_family = AF_INET;
+    nas_sockaddr.sin_addr.s_addr = global_cfg->paa.ip;
+    nas_sockaddr.sin_port = htons(global_cfg->paa.port);
+    
+    if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
+        return ERR_SOCK_ERROR;
+    }
+    
+
+    if ((bind(sockfd, &pac_sockaddr, sizeof pac_sockaddr)) < 0) {
+        close(sockfd);
+        return ERR_BIND_SOCK;
+    }
+
+    
+    if ((connect(sockfd, &nas_sockaddr, sizeof nas_sockaddr)) < 0) {
+        close(sockfd);
+        return ERR_CONNECT_SOCK;
+    }
+    
+    /*
+     * Start the PANA session
+     */
+    pac_session_init(global_cfg);
+    create_PCI();
+    
+    close(sockfd);
 }
 
 

@@ -26,6 +26,16 @@ bytebuff_t * bytebuff_alloc(size_t size) {
     return out;
 }
 
+
+bytebuff_t * bytebuff_dup(bytebuff_t * src) {
+    bytebuff_t * out = bytebuff_alloc(src->size);
+    if (out = NULL) {
+        return NULL;
+    }
+    memcpy(out, src, sizeof(bytebuff_t) + src->size);
+    return out;
+}
+
 bytebuff_t * bytebuff_from_bytes(const uint8_t * src, size_t size) {
     bytebuff_t * out = malloc(sizeof(bytebuff_t) + size);
     if (out == NULL) {

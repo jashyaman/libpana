@@ -9,20 +9,19 @@
 #define DEBUG_H_
 
 
+void dbgi_hexdump(const char * const level, const char * const title,
+                  const char * const buff, unsigned int len);
+
+void dbgi_asciihexdump(const char * const level, const char * const title,
+                      const unsigned char * const buff, unsigned int len);
+
 #define dbg_printf(level,fmt, args...) \
     printf("[%s]: " fmt "\n" , #level, ##args)
 
-#define dbg_hexdump(level, title, buff, len)\
-{\
-    printf("[%s] - " title "\n", #level);\
-    int _ix;\
-    for (_ix=0 ; _ix<len; _ix++ ) {\
-        printf("%02X ", *(((char*) buff) + _ix));\
-        if (((_ix + 1) & 0x0f) == 0)\
-            puts("|");\
-    }\
-    puts("");\
-}
+#define dbg_hexdump(level, title, buff, len) dbgi_hexdump(#level, title, buff, len)
+
+#define dbg_asciihexdump(level, title, buff, len) dbgi_asciihexdump(#level, title, buff, len)
+
 
 #define DEBUG(cmd) \
     printf("#DEBUG: %s [%d]: %s\n", __FILE__, __LINE__, #cmd); \

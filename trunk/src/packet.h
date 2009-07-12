@@ -28,11 +28,9 @@ pana_avp_node_t *
 avp_list_insert (pana_avp_node_t * dst_list,
                  pana_avp_node_t * src_list);
 
-int parse_pana_packet (uint8_t * const buf, uint16_t len,
-                       pana_packet_t * out);
+pana_packet_t * parse_pana_packet (bytebuff_t * buff);
 
-bytebuff_t *
-serialize_pana_packet (const pana_packet_t * const pkt);
+bytebuff_t * serialize_pana_packet (const pana_packet_t * const pkt);
 
 
 pana_packet_t *
@@ -42,7 +40,7 @@ construct_pana_packet (uint16_t flags,
                        uint32_t seq_number,
                        pana_avp_node_t *avp_list);
 
-int free_pana_packet(pana_packet_t * pkt);
+void free_pana_packet(pana_packet_t * pkt);
 
 
 
