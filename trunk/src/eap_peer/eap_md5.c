@@ -19,25 +19,15 @@
 #include "eap_common/eap_common.h"
 #include "eap_common/chap.h"
 
-typedef enum {
-        DECISION_FAIL, DECISION_COND_SUCC, DECISION_UNCOND_SUCC
-} EapDecision;
 
-typedef enum {
-        METHOD_NONE, METHOD_INIT, METHOD_CONT, METHOD_MAY_CONT, METHOD_DONE
-} EapMethodState;
+//static struct wpabuf * eap_md5_process(struct eap_peer_config *cfg,
+//                                       void *priv,
+//                                       struct eap_method_ret *ret,
+//                                       const struct wpabuf *reqData)
 
-struct eap_method_ret {
-        Boolean ignore; //Whether method decided to drop the current packed (OUT)
-        EapMethodState methodState; //Method-specific state (IN/OUT)
-        EapDecision decision; //Authentication decision (OUT)
-        Boolean allowNotifications;
-};
-
-static struct wpabuf * eap_md5_process(struct eap_peer_config *cfg,
-                                       void *priv,
-				       struct eap_method_ret *ret,
-				       const struct wpabuf *reqData)
+struct wpabuf * eap_md5_process(struct eap_peer_config *cfg,
+                                       struct eap_method_ret *ret,
+                                       const struct wpabuf *reqData)
 {
 	struct wpabuf *resp;
 	const uint8_t *pos, *challenge, *password;
@@ -102,3 +92,24 @@ static struct wpabuf * eap_md5_process(struct eap_peer_config *cfg,
 	return resp;
 }
 
+/*
+int eap_peer_md5_register(void)
+{
+        struct eap_method *eap;
+        int ret;
+
+        eap = eap_peer_method_alloc(EAP_PEER_METHOD_INTERFACE_VERSION,
+                                    EAP_VENDOR_IETF, EAP_TYPE_MD5, "MD5");
+        if (eap == NULL)
+                return -1;
+
+        eap->init = eap_md5_init;
+        eap->deinit = eap_md5_deinit;
+        eap->process = eap_md5_process;
+
+        ret = eap_peer_method_register(eap);
+        if (ret)
+                eap_peer_method_free(eap);
+        return ret;
+}
+*/
