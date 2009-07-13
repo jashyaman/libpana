@@ -11,6 +11,12 @@
 #include "pana_common.h"
 
 
+typedef pana_avp_node_t * pana_avp_list;
+
+
+
+
+
 pana_avp_t * create_avp(uint16_t code, uint16_t flags, uint32_t vendorid,
                         uint8_t * value, uint16_t length);
 
@@ -27,6 +33,14 @@ avp_list_append (pana_avp_node_t * dst_list,
 pana_avp_node_t *
 avp_list_insert (pana_avp_node_t * dst_list,
                  pana_avp_node_t * src_list);
+
+Boolean exists_avp(pana_packet_t * pktin, pana_avp_codes_t avpcode);
+
+#define AVP_GET_FIRST 0
+#define AVP_GET_NEXT  1
+
+
+pana_avp_t * get_avp_by_code(pana_avp_list src, pana_avp_codes_t code, uint8_t flag);
 
 pana_packet_t * parse_pana_packet (bytebuff_t * buff);
 

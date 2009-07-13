@@ -15,8 +15,7 @@
 #include "utils/includes.h"
 #include "utils/util.h"
 
-#include "eap_common/eap_config.h"
-#include "eap_common/eap_common.h"
+#include "eap_md5.h"
 #include "eap_common/chap.h"
 
 

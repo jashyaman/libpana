@@ -14,8 +14,8 @@
 
 //#include "eap_common/eap_config.h"
 
-#define F_AVP_FLAG_VENDOR 0x8000
-#define F_AVP_FLAG_CLEARED 0x0000
+#define FAVP_FLAG_VENDOR 0x8000
+#define FAVP_FLAG_CLEARED 0x0000
 
 #define PFLAGS_NONE  0x0000       // Cleared Flags
 #define PFLAG_R      0x8000       // Request
@@ -35,7 +35,7 @@ enum pana_message_types {
     PMT_PNA     = 4             // PANA-Notification-Answer
 };
 
-enum pana_avp_codes {
+typedef enum pana_avp_codes {
     PAVP_AUTH           = 1,
     PAVP_EAP_PAYLOAD    = 2,
     PAVP_INTEGRITY_ALG  = 3,
@@ -48,7 +48,7 @@ enum pana_avp_codes {
     
     /* Vendor codes for UPB*/
     PAVP_V_IDENTITY     = 1
-};
+} pana_avp_codes_t;
 
 enum {
     PANA_VENDOR_RESERVED = 0,

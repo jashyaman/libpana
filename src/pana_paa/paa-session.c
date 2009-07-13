@@ -31,9 +31,8 @@ static paa_config_t * cfg;
 static uint32_t last_sessid = 0;
 
 typedef enum {
-    PAC_STATE_CLOSED,
-    PAC_STATE_PCI_RECVD
-} pac_session_state_t;
+    PAA_STATE_CLOSED,
+} paa_session_state_t;
 
 static pana_session_t * get_session_by_srcaddr(ip_port_t * srcaddr) {
     pana_session_node_t * cursor = pacs_list;

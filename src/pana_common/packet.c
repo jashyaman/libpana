@@ -225,7 +225,7 @@ parse_pana_packet (bytebuff_t * buff)
         tmp_node->node.avp_length   = bytes_to_be16(px + PAL_OFFSET_AVP_LENGTH);
         tmp_node->node.avp_reserved = bytes_to_be16(px + PAL_OFFSET_AVP_RESERVED);
 
-        if (tmp_node->node.avp_flags & F_AVP_FLAG_VENDOR) {
+        if (tmp_node->node.avp_flags & FAVP_FLAG_VENDOR) {
             tmp_node->node.avp_vendor_id = ntohs(bytes_to_be32(px + PAL_OFFSET_AVP_VENDOR_ID));
             px += PAL_OFFSET_AVP_VENDOR_VALUE;
         } else {
@@ -287,7 +287,7 @@ serialize_pana_packet (const pana_packet_t * const pkt)
         buff_insert_be16(pos + PAL_OFFSET_AVP_LENGTH,   cursor->node.avp_length);
         buff_insert_be16(pos + PAL_OFFSET_AVP_RESERVED, cursor->node.avp_reserved);
 
-        if (cursor->node.avp_flags & F_AVP_FLAG_VENDOR) {
+        if (cursor->node.avp_flags & FAVP_FLAG_VENDOR) {
             buff_insert_be32(pos + PAL_OFFSET_AVP_VENDOR_ID, cursor->node.avp_vendor_id);
             pos += PAL_OFFSET_AVP_VENDOR_VALUE;
         } else {
@@ -337,7 +337,7 @@ construct_pana_packet (uint16_t message_type,
 
     cursor = avp_list;
     while (cursor != NULL) {
-        msg_length += (cursor->node.avp_flags | F_AVP_FLAG_VENDOR) ?
+        msg_length += (cursor->node.avp_flags | FAVP_FLAG_VENDOR) ?
                 PAL_OFFSET_AVP_VENDOR_VALUE : PAL_OFFSET_AVP_VALUE;
         msg_length += round_to_dwords(cursor->node.avp_length);
         cursor = cursor->next;
