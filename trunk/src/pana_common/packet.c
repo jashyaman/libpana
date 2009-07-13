@@ -45,6 +45,10 @@ pana_avp_t * create_avp(uint16_t code, uint16_t flags, uint32_t vendorid,
 }
 
 void free_avp (pana_avp_t * avp) {
+    if (avp == NULL) {
+        return;
+    }
+    
     if (avp->avp_value != NULL) {
         free(avp->avp_value);
     }
@@ -110,9 +114,51 @@ avp_list_insert (pana_avp_node_t * dst_list,
     return avp_list_append(src_list, dst_list);  // :D
 }
 
+static pana_avp_list get_avp_last_pos = NULL;
+
+pana_avp_t * get_avp_by_code(pana_avp_list src, pana_avp_codes_t code, uint8_t flag) {
+    pana_avp_t * resp = NULL;
+    pana_avp_node_t * cursor;
+
+    if (flag == AVP_GET_NEXT) {
+        cursor = get_avp_last_pos;
+    }
+    else if (flag == AVP_GET_FIRST) {
+        cursor = src;
+    }
+    else {
+        return NULL;
+    }
+    
+    for (cursor; cursor != NULL; cursor = cursor->next) {
+        if (cursor->node.avp_code == code) {
+            get_avp_last_pos = cursor->next;
+            return &(cursor->node);
+        }
+    }
+    
+    /* no matching AVP remained */
+    get_avp_last_pos = NULL;
+}
+
 /*
  * Packet functions
  */
+
+Boolean exists_avp(pana_packet_t * pktin, pana_avp_codes_t avpcode) {
+    pana_avp_node_t * cursor;
+    if (pktin == NULL || pktin->pp_avp_list == NULL) {
+        return FALSE;
+    }
+    
+    cursor = pktin->pp_avp_list;
+    for (cursor ; cursor !=NULL ; cursor = cursor->next) {
+        if (cursor->node.avp_code == avpcode) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
 
 /*
  * Parse a packet from an octet-stream
@@ -120,11 +166,19 @@ avp_list_insert (pana_avp_node_t * dst_list,
 pana_packet_t *
 parse_pana_packet (bytebuff_t * buff)
 {
-    const uint8_t * sx = bytebuff_data(buff);
-    const uint8_t * px = sx;
+    const uint8_t * sx = NULL;
+    const uint8_t * px = NULL;
     pana_avp_node_t * tmpavplist = NULL;
     pana_avp_node_t * tmp_node = NULL;
     pana_packet_t * out = NULL;
+    
+    
+    if (buff == NULL) {
+        return NULL;
+    }
+    
+    px = bytebuff_data(buff);
+    sx = px;
     
     out = malloc(sizeof(pana_packet_t));
     if (out == NULL) {
