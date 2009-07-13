@@ -21,24 +21,25 @@ typedef struct ip_port_s {
 } ip_port_t;
 
 
-typedef struct eap_peer_config {
+typedef struct pana_eap_peer_config {
         uint8_t *identity;
         size_t identity_len;
 
         uint8_t *password;
         size_t password_len;
-} eap_peer_config_t;
+} pana_eap_peer_config_t;
 
 /* PaC global config */
 typedef struct pac_config_s {
     /* auth config parameters */
     ip_port_t pac;
     ip_port_t paa;
-    struct eap_peer_config * eap_cfg;
+    pana_eap_peer_config_t * eap_cfg;
     
     /* transmission params */
     uint16_t rtx_interval;
     uint8_t  rtx_max_count;
+    uint16_t failed_sess_timeout;
     uint8_t  reauth_interval; /* start reauth at sess_lifetime*(reauth_interval/100) */
     
 } pac_config_t;
@@ -48,7 +49,7 @@ typedef struct paa_config_s {
     /* auth config parameters */
     ip_port_t paa;
     ip_port_t ep;                               // Enforcement point
-    struct eap_peer_config (*get_eap_cfg)(uint32_t sess_id);
+    pana_eap_peer_config_t (*get_eap_cfg)(uint32_t sess_id);
     
     /* transmission params */
     uint16_t rtx_interval;
