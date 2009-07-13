@@ -96,6 +96,7 @@ typedef struct pana_avp_node_s {
 } pana_avp_node_t;
 
 #define PANA_PKT_HEADER_SIZE 16
+#define PANA_PKT_MAX_SIZE    1500       // Roughly equal to MTU
 
 enum pana_packet_layout {
     PPL_OFFSET_RESERVED         = 0,
@@ -105,6 +106,13 @@ enum pana_packet_layout {
     PPL_OFFSET_SESSION_ID       = 8,
     PPL_OFFSET_SEQ_NUMBER       = 12,
     PPL_OFFSET_AVP              = 16
+};
+
+enum pana_prf_codes {
+    PRF_HMAC_MD5    = 1,
+    PRF_HMAC_SHA1   = 2,
+    PRF_HMAC_TIGER  = 3,
+    PRF_AES128_XCBC = 4
 };
 
 
@@ -152,13 +160,21 @@ typedef struct pana_sesion_s {
     void * ctx;         // Other specifi options for PaC and PAA
 } pana_session_t;
 
+typedef enum pana_phase {
+    PANA_PHASE_UNITIALISED,
+    PANA_PHASE_AUTH,
+    PANA_PHASE_ACCESS,
+    PANA_PHASE_REAUTH,
+    PANA_PHASE_TERMINATE
+} pana_phase_t;
+
 
 
 typedef struct {
     uint8_t count;
     time_t deadline; // Deadline in Epoch :)
     Boolean enabled;
-} rtx_timer_t;
+} rtimer_t;
 
 
 #endif /* PANA_COMMON_H_ */

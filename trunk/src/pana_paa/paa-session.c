@@ -16,7 +16,7 @@
 
 /* pac context data */
 typedef struct paa_ctx {
-    rtx_timer_t rtimer;
+    rtimer_t rtimer;
     const paa_config_t * paaglobal;   //we want this to be readonly
 } paa_ctx_t;
 

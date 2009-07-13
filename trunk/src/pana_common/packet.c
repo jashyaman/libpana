@@ -78,6 +78,12 @@ void avp_list_destroy(pana_avp_node_t *avp_list)
     }
 }
 
+/*
+ * WARNING: these functions do not change the pointers srclist & dstlist.
+ * They shoul be used as 
+ *      dstlist = avp_list_append(dstlist,srclist);
+ *      dstlist = avp_list_insert(dstlist,srclist);
+ */
 pana_avp_node_t *
 avp_list_append (pana_avp_node_t * dst_list,
                  pana_avp_node_t * src_list)
@@ -196,6 +202,10 @@ serialize_pana_packet (const pana_packet_t * const pkt)
     bytebuff_t * out;
     uint8_t * pos;
     pana_avp_node_t * cursor = NULL;
+    
+    if (pkt == NULL) {
+        return NULL;
+    }
 
     out = bytebuff_alloc(pkt->pp_message_length);
     if (out == NULL) {
@@ -246,8 +256,8 @@ serialize_pana_packet (const pana_packet_t * const pkt)
  * Construct a PANA packet from fields
  */
 pana_packet_t *
-construct_pana_packet (uint16_t flags,
-                       uint16_t message_type,
+construct_pana_packet (uint16_t message_type,
+                       uint16_t flags,
                        uint32_t session_id,
                        uint32_t seq_number,
                        pana_avp_node_t *avp_list)
