@@ -248,7 +248,7 @@ static Boolean paa_eap_piggyback() {
     return TRUE;
 }
 
-static int paa_result_code(pana_avp_list listin) {
+static int paa_result_code(pana_avp_list_t listin) {
     int res;
     pana_avp_t * tmpavp = get_avp_by_code(listin, PAVP_RESULT_CODE, AVP_GET_FIRST);
     if (!tmpavp) {
