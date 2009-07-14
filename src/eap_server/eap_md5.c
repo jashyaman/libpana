@@ -15,18 +15,11 @@
 #include "utils/includes.h"
 #include "utils/util.h"
 
-#include "eap_common/eap_common.h"
-#include "eap_common/eap_config.h"
+#include "eap_md5.h"
 #include "eap_common/chap.h"
 
-#define CHALLENGE_LEN 16
 
-struct eap_md5_data {
-	uint8_t challenge[CHALLENGE_LEN];
-	enum { CONTINUE, SUCCESS, FAILURE } state;
-};
-
-static void * eap_md5_get_peer_config(eap_peer_config_t * cfg, char* passfile) {
+void * eap_md5_get_peer_config(eap_peer_config_t * cfg, char* passfile) {
     FILE *f;
     char *buf, *px;
     Boolean found = FALSE;
@@ -58,7 +51,7 @@ static void * eap_md5_get_peer_config(eap_peer_config_t * cfg, char* passfile) {
     return cfg;
 }
 
-static void * eap_md5_init()
+void * eap_md5_init()
 {
 	struct eap_md5_data *data;
 
@@ -66,21 +59,18 @@ static void * eap_md5_init()
 	if (data == NULL)
 		return NULL;
 	data->state = CONTINUE;
-	
-	
-
 	return data;
 }
 
 
-static void eap_md5_reset(void *priv)
+void eap_md5_reset(void *priv)
 {
 	struct eap_md5_data *data = priv;
 	os_free(data);
 }
 
 
-static struct wpabuf * eap_md5_buildReq(void *priv, u8 id)
+struct wpabuf * eap_md5_buildReq(void *priv, u8 id)
 {
 	struct eap_md5_data *data = priv;
 	struct wpabuf *req;
@@ -111,7 +101,7 @@ static struct wpabuf * eap_md5_buildReq(void *priv, u8 id)
 }
 
 
-static Boolean eap_md5_check(void *priv, struct wpabuf *respData)
+Boolean eap_md5_check(void *priv, struct wpabuf *respData)
 {
 	const uint8_t *pos;
 	size_t len;
@@ -132,7 +122,7 @@ static Boolean eap_md5_check(void *priv, struct wpabuf *respData)
 }
 
 
-static void eap_md5_process(struct eap_peer_config *cfg, void *priv,
+void eap_md5_process(struct eap_peer_config *cfg, void *priv,
 			    struct wpabuf *respData)
 {
 	struct eap_md5_data *data = priv;
@@ -168,14 +158,14 @@ static void eap_md5_process(struct eap_peer_config *cfg, void *priv,
 }
 
 
-static Boolean eap_md5_isDone(void *priv)
+Boolean eap_md5_isDone(void *priv)
 {
 	struct eap_md5_data *data = priv;
 	return data->state != CONTINUE;
 }
 
 
-static Boolean eap_md5_isSuccess(void *priv)
+Boolean eap_md5_isSuccess(void *priv)
 {
 	struct eap_md5_data *data = priv;
 	return data->state == SUCCESS;

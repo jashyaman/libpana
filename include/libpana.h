@@ -49,14 +49,12 @@ typedef struct paa_config_s {
     /* auth config parameters */
     ip_port_t paa;
     ip_port_t ep;                               // Enforcement point
-    pana_eap_peer_config_t (*get_eap_cfg)(uint32_t sess_id);
+    pana_eap_peer_config_t * eap_cfg;
     
     /* transmission params */
     uint16_t rtx_interval;
     uint8_t  rtx_max_count;
-    uint8_t  reauth_interval; /* start reauth at sess_lifetime*(reauth_interval/100) */
-    
-    
+    uint16_t failed_sess_timeout;
     
 } paa_config_t;
 

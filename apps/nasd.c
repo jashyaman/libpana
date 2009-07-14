@@ -91,6 +91,7 @@ int main(char * argv[], int argc)
     if (exit_code > ERR_CODE) {
         exit(exit_code);
     }
+    paa_main(global_cfg);
     
     exit(exit_code);
     
