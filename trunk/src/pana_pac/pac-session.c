@@ -133,6 +133,8 @@ static int pac_session_init(pac_config_t * pac_cfg){
     ctx->eap_config = get_eap_config(pac_cfg->eap_cfg);
     ctx->stats_flags = SF_CELARED;
     
+    
+    
     pac_RtxTimerStop();
     ctx->reauth_timer.enabled = FALSE;
     pacs->cstate = PAC_STATE_INITIAL;
@@ -147,18 +149,30 @@ static void pac_Retransmit() {
 
     ctx->rtx_timer.count++;
     if (pacs->pkt_cache != NULL) {
+        dbg_asciihexdump(PKT_RTX,"PAcket rtx contents",
+                bytebuff_data(pacs->pkt_cache),
+                pacs->pkt_cache->used);
         res = send(ctx->sockfd, bytebuff_data(pacs->pkt_cache),
                 pacs->pkt_cache->used, 0);
-        if (res < 0 && res != pacs->pkt_cache->used) {
+        if (res < 0 || res != pacs->pkt_cache->used) {
             DEBUG("There was a problem when sending the cached pkt");
+            dbg_printf(UNEXPECTED_SED_RES,
+                    "res was: %d and [errno=%d] : %s",
+                    res, errno, strerror(errno));
+            
         }
     }
     else {
         DEBUG(/* Something happened to the cached packet???*/);
     }
+    
+    /* schedule the next retransmission */
+    ctx->rtx_timer.deadline = time(NULL) + cfg->rtx_interval;
 }
 
 static void pac_Disconnect() {
+    pacs->cstate = PAC_STATE_CLOSED;
+    DEBUG("Session Disconnecting");
     /* TODO: sess cleanup */
     
 }
@@ -271,34 +285,34 @@ pac_process(bytebuff_t * datain) {
         }
     }
     
+   if (ctx->event_occured & EV_RX) {
     /*
    State: ANY except INITIAL
    - - - - - - - - - - (liveness test initiated by peer)- - - - - -
    Rx:PNR[P]                Tx:PNA[P]();               (no change)
      */
-    if (pacs->cstate != PAC_STATE_INITIAL) {
-        if (RX_PNR_P(pkt_in)) {
-            TX_PNA_P(pkt_out, NULL);
-            respdata = serialize_pana_packet(pkt_out);
-            /* reset the event status */
-            ctx->event_occured = FALSE;
-        }
-    }
-    
-    
+       if (pacs->cstate != PAC_STATE_INITIAL) {
+           if (RX_PNR_P(pkt_in)) {
+               TX_PNA_P(pkt_out, NULL);
+               respdata = serialize_pana_packet(pkt_out);
+               /* reset the event status */
+               ctx->event_occured = FALSE;
+           }
+       }
+
     /*
    State: ANY except WAIT_PNA_PING
    ------------------------+--------------------------+------------
    - - - - - - - - - - - - (liveness test response) - - - - - - - -
    Rx:PNA[P]                None();                    (no change)
      */
-    if (pacs->cstate != PAC_STATE_WAIT_PNA_PING){
-        if (RX_PNA_P(pkt_in)) {
-            /* just discard the packet because it's not meant occur in this phase */
-            ctx->event_occured = EV_CLEAR;
-        }
-    }
-    
+       if (pacs->cstate != PAC_STATE_WAIT_PNA_PING){
+           if (RX_PNA_P(pkt_in)) {
+               /* just discard the packet because it's not meant occur in this phase */
+               ctx->event_occured = EV_CLEAR;
+           }
+       }
+   }    
     /*
    State: CLOSED
    ------------------------+--------------------------+------------
@@ -659,11 +673,6 @@ pac_process(bytebuff_t * datain) {
         return NULL;
     }
     
-    ctx->rtx_timer.count++;
-    ctx->rtx_timer.deadline = time(NULL) + pacglobal->rtx_interval;
-    ctx->rtx_timer.enabled = TRUE;
-    
-    
     return respdata;
 }
 
@@ -714,7 +723,7 @@ pac_main(const pac_config_t * const global_cfg) {
      * Setup the sockfd (nonblocking)
      */
        
-    if (fcntl(sockfd,F_SETFL, fcntl(sockfd,F_GETFL,0) | O_NONBLOCK) < 1) {
+    if (fcntl(sockfd,F_SETFL, fcntl(sockfd,F_GETFL,0) | O_NONBLOCK) == -1) {
         close(sockfd);
         DEBUG("Could not set the socket as nonblocking");
         dbg_printf(ERR_SETFL_NONBLOCKING,"Could not set the socket as nonblocking");

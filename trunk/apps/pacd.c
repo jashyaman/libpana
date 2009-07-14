@@ -79,14 +79,25 @@ int process_config_files() {
     /*
      * TODO: implement parsing of config and dhcp-lease file
      */
+    ip_port_t * tmp_iport;
+
+    tmp_iport = str_to_ip_port("127.0.0.1:5000");
+    global_cfg.pac = *tmp_iport;
+    free(tmp_iport);
+
+    tmp_iport = str_to_ip_port("127.0.0.1:7000");
+    global_cfg.paa = *tmp_iport;
+    free(tmp_iport);
     
-    global_cfg.pac = *(str_to_ip_port("192.168.1.102:5000"));
     global_cfg.eap_cfg = malloc(sizeof(pana_eap_peer_config_t));
     global_cfg.eap_cfg->identity = "alex.antone@gmail.com";
     global_cfg.eap_cfg->identity_len = strlen(global_cfg.eap_cfg->identity);
     global_cfg.eap_cfg->password = "CLEARTEXT TEST PASSWORD";
     global_cfg.eap_cfg->password_len = strlen(global_cfg.eap_cfg->password);
-               
+    global_cfg.reauth_interval = 80;
+    global_cfg.rtx_interval = 10;
+    global_cfg.rtx_max_count = 10;
+    global_cfg.failed_sess_timeout = 300;  // 5 min
     
     return RES_CFG_FILES_OK;
 }
