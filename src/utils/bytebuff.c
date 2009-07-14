@@ -28,11 +28,17 @@ bytebuff_t * bytebuff_alloc(size_t size) {
 
 
 bytebuff_t * bytebuff_dup(bytebuff_t * src) {
-    bytebuff_t * out = bytebuff_alloc(src->size);
-    if (out = NULL) {
+    bytebuff_t * out = NULL;
+    if (src == NULL) {
         return NULL;
     }
-    memcpy(out, src, sizeof(bytebuff_t) + src->size);
+    
+    out = bytebuff_alloc(src->size);
+    if (out == NULL) {
+        return NULL;
+    }
+    /* copy all data including the header */
+    memcpy(out, src, sizeof(bytebuff_t) + src->used);
     return out;
 }
 

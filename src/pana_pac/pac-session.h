@@ -29,7 +29,7 @@
 #define TX(msgtype, msgflags, pktout, avplist) \
     (pktout) = construct_pana_packet((msgtype), (msgflags), pacs->session_id, pacs->seq_tx++, avplist)
 
-#define TX_PCI(pktout, avplist) TX(PMT_PNA, PFLAGS_NONE, pkt_out, avplist)
+#define TX_PCI(pktout, avplist)   TX(PMT_PCI, PFLAGS_NONE, pkt_out, avplist)
 
 #define TX_PAR(pktout, avplist)   TX(PMT_PAR, PFLAG_R, pkt_out, avplist)
 
