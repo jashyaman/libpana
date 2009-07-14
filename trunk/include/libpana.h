@@ -66,6 +66,8 @@ typedef struct paa_config_s {
  * PaC specific functions
  * -------------------------------------------------------------------------
  */
+int pac_main(const pac_config_t * const global_cfg);
+
 
 /*
  * -------------------------------------------------------------------------

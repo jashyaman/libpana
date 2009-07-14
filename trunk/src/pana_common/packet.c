@@ -41,7 +41,9 @@ pana_avp_t * create_avp(uint16_t code, uint16_t flags, uint32_t vendorid,
     out->avp_flags = flags;
     out->avp_vendor_id = vendorid;
     out->avp_value = value;
-    out->avp_length = length;  
+    out->avp_length = length;
+    
+    return out;
 }
 
 void free_avp (pana_avp_t * avp) {
@@ -114,10 +116,9 @@ avp_list_insert (pana_avp_node_t * dst_list,
     return avp_list_append(src_list, dst_list);  // :D
 }
 
-static pana_avp_list get_avp_last_pos = NULL;
+static pana_avp_list_t get_avp_last_pos = NULL;
 
-pana_avp_t * get_avp_by_code(pana_avp_list src, pana_avp_codes_t code, uint8_t flag) {
-    pana_avp_t * resp = NULL;
+pana_avp_t * get_avp_by_code(pana_avp_list_t src, pana_avp_codes_t code, uint8_t flag) {
     pana_avp_node_t * cursor;
 
     if (flag == AVP_GET_NEXT) {
@@ -130,7 +131,7 @@ pana_avp_t * get_avp_by_code(pana_avp_list src, pana_avp_codes_t code, uint8_t f
         return NULL;
     }
     
-    for (cursor; cursor != NULL; cursor = cursor->next) {
+    for ( ; cursor != NULL; cursor = cursor->next) {
         if (cursor->node.avp_code == code) {
             get_avp_last_pos = cursor->next;
             return &(cursor->node);
@@ -139,6 +140,7 @@ pana_avp_t * get_avp_by_code(pana_avp_list src, pana_avp_codes_t code, uint8_t f
     
     /* no matching AVP remained */
     get_avp_last_pos = NULL;
+    return NULL;
 }
 
 /*
@@ -152,7 +154,7 @@ Boolean exists_avp(pana_packet_t * pktin, pana_avp_codes_t avpcode) {
     }
     
     cursor = pktin->pp_avp_list;
-    for (cursor ; cursor !=NULL ; cursor = cursor->next) {
+    for ( ; cursor !=NULL ; cursor = cursor->next) {
         if (cursor->node.avp_code == avpcode) {
             return TRUE;
         }

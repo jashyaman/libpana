@@ -11,7 +11,7 @@
 #include "pana_common.h"
 
 
-typedef pana_avp_node_t * pana_avp_list;
+typedef pana_avp_node_t * pana_avp_list_t;
 
 
 
@@ -40,7 +40,7 @@ Boolean exists_avp(pana_packet_t * pktin, pana_avp_codes_t avpcode);
 #define AVP_GET_NEXT  1
 
 
-pana_avp_t * get_avp_by_code(pana_avp_list src, pana_avp_codes_t code, uint8_t flag);
+pana_avp_t * get_avp_by_code(pana_avp_list_t src, pana_avp_codes_t code, uint8_t flag);
 
 pana_packet_t * parse_pana_packet (bytebuff_t * buff);
 

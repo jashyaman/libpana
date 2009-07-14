@@ -10,7 +10,7 @@
 
 
 void dbgi_hexdump(const char * const level, const char * const title,
-                  const char * const buff, unsigned int len);
+                  const unsigned char * const buff, unsigned int len);
 
 void dbgi_asciihexdump(const char * const level, const char * const title,
                       const unsigned char * const buff, unsigned int len);

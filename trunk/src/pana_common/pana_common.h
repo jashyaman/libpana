@@ -36,6 +36,7 @@ enum pana_message_types {
 };
 
 typedef enum pana_avp_codes {
+    PAVP_NULL           = 0,
     PAVP_AUTH           = 1,
     PAVP_EAP_PAYLOAD    = 2,
     PAVP_INTEGRITY_ALG  = 3,

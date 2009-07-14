@@ -9,7 +9,7 @@
 #include "debug.h"
 
 void dbgi_hexdump(const char * const level, const char * const title,
-                  const char * const buff, unsigned int len)
+                  const unsigned char * const buff, unsigned int len)
 {
     int _ix;
     printf("[%s] - %s\n", level, title);
@@ -27,16 +27,16 @@ void dbgi_hexdump(const char * const level, const char * const title,
 void dbgi_asciihexdump(const char * const level, const char * const title,
                       const unsigned char * const buff, unsigned int len)
 {
-    char * linebuff = calloc(256,1);
+    char * slinebuff = malloc(100);
     char * lx;
     unsigned char * px;
     int ix,jx,cx;
     printf("[%s] - %s\n", level, title);
     
     for (ix=0 ; ix<len; ix += 0xf ) {
-        bzero(linebuff, sizeof(linebuff));
+        bzero(slinebuff, sizeof(slinebuff));
         px = buff + ix;
-        lx = linebuff;
+        lx = slinebuff;
         cx = (len - ix > 0xf) ? 0x10 : len - ix; 
         for (jx=0; jx < cx; jx++ , lx+=3) {
             sprintf(lx, "%02X ", px[jx]);
@@ -54,7 +54,8 @@ void dbgi_asciihexdump(const char * const level, const char * const title,
         for (jx; jx < 0x10; jx++, lx+=2) {
             sprintf(lx, "..");
         }
-        printf("%.80s\n",linebuff);
+        printf("%.80s\n",slinebuff);
     }
-    free(linebuff);
+    
+    free(slinebuff);
 }

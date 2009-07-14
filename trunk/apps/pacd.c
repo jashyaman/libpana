@@ -96,8 +96,8 @@ int process_config_files() {
     global_cfg.eap_cfg->password_len = strlen(global_cfg.eap_cfg->password);
     global_cfg.reauth_interval = 80;
     global_cfg.rtx_interval = 10;
-    global_cfg.rtx_max_count = 10;
-    global_cfg.failed_sess_timeout = 300;  // 5 min
+    global_cfg.rtx_max_count = 4;
+    global_cfg.failed_sess_timeout = 60;  // 5 min
     
     return RES_CFG_FILES_OK;
 }
