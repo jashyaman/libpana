@@ -582,10 +582,75 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
             return NULL;
         }
     }
-
 #define RTX_COUNTER (ctx->rtx_timer.count)
 #define RTX_MAX_NUM (cfg->rtx_max_count)
     
+//   ----------
+//   State: ANY
+//   ----------
+//   - - - - - - - - - - - - - (Re-transmissions)- - - - - - - - - -
+//   RTX_TIMEOUT &&           Retransmit();              (no change)
+//   RTX_COUNTER<
+//   RTX_MAX_NUM
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    if (RTX_TIMEOUT && RTX_COUNTER < RTX_MAX_NUM) {
+        clear_events();
+        Retransmit();
+    }
+//   - - - - - - - (Reach maximum number of transmissions)- - - - - -
+//   (RTX_TIMEOUT &&          Disconnect();              CLOSED
+//    RTX_COUNTER>=
+//    RTX_MAX_NUM) ||
+//   SESS_TIMEOUT
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    if ((RTX_TIMEOUT && RTX_COUNTER >= RTX_MAX_NUM) || 
+        SESS_TIMEOUT) {
+        clear_events();
+        Disconnect();
+        
+    }
+    
+    
+    if (PKT_RECVD) {
+//   -------------------------
+//   State: ANY except INITIAL
+//   -------------------------
+//   - - - - - - - - - - (liveness test initiated by peer)- - - - - -
+//   Rx:PNR[P]                Tx:PNA[P]();               (no change)
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       if (pacs->cstate != PAC_STATE_INITIAL) {
+           if (RX_PNR_P(pkt_in)) {
+               /* reset the event status */
+               clear_events();
+               TX_PNA_P(respData, NULL);
+           }
+       }
+
+//   -------------------------
+//   State: ANY except WAIT_PNA_PING
+//   -------------------------
+//   - - - - - - - - - - - - (liveness test response) - - - - - - - -
+//   Rx:PNA[P]                None();                    (no change)
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       if (pacs->cstate != PAC_STATE_WAIT_PNA_PING){
+           if (RX_PNA_P(pkt_in)) {
+               clear_events();
+               /* just discard the packet because it's not meant occur in this phase */
+           }
+       }
+   }    
+
+//   -------------------------
+//   State: CLOSED
+//   -------------------------
+//   - - - - - - - -(Catch all event on closed state) - - - - - - - -
+//   ANY                      None();                    CLOSED
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    if (pacs->cstate == PAC_STATE_CLOSED){
+        clear_events();
+        /* just discard the packet because it's not meant occur in this phase */
+    }
+
     
     
     while(ctx->event_occured) {

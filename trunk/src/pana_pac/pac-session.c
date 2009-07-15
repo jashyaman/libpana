@@ -364,6 +364,13 @@ static pana_avp_list_t pac_avplist_create(pana_session_t * pacs, pana_avp_codes_
             if (pacs->sa == NULL) {
                 break;
             }
+            if (os_get_random(pacs->sa->PaC_nonce,
+                    sizeof(pacs->sa->PaC_nonce)) < 0) {
+                DEBUG("Nonce couldn't be generated");
+            }
+            dbg_hexdump(MSG_SEC, "Generated Nonce contents", 
+                    pacs->sa->PaC_nonce, sizeof(pacs->sa->PaC_nonce));
+
             tmp_avp = create_avp(PAVP_NONCE, FAVP_FLAG_CLEARED, 0,
                     pacs->sa->PaC_nonce, sizeof(pacs->sa->PaC_nonce));
             tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
@@ -437,7 +444,6 @@ pac_process(bytebuff_t * datain) {
 //   -------------------------
 //   State: ANY except INITIAL
 //   -------------------------
-//
 //   - - - - - - - - - - (liveness test initiated by peer)- - - - - -
 //   Rx:PNR[P]                Tx:PNA[P]();               (no change)
 //   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -449,7 +455,9 @@ pac_process(bytebuff_t * datain) {
            }
        }
 
+//   -------------------------
 //   State: ANY except WAIT_PNA_PING
+//   -------------------------
 //   - - - - - - - - - - - - (liveness test response) - - - - - - - -
 //   Rx:PNA[P]                None();                    (no change)
 //   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -461,7 +469,9 @@ pac_process(bytebuff_t * datain) {
        }
    }    
 
+//   -------------------------
 //   State: CLOSED
+//   -------------------------
 //   - - - - - - - -(Catch all event on closed state) - - - - - - - -
 //   ANY                      None();                    CLOSED
 //   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -590,12 +600,6 @@ pac_process(bytebuff_t * datain) {
 
                 /* MD5 doeas not generate pana_sa */
                 if (!(NONCE_SENT)) {
-                    if (os_get_random(pacs->sa->PaC_nonce,
-                            sizeof(pacs->sa->PaC_nonce)) < 0) {
-                        DEBUG("Nonce couldn't be generated");
-                    }
-                    dbg_hexdump(MSG_SEC, "Generated Nonce contents", 
-                            pacs->sa->PaC_nonce, sizeof(pacs->sa->PaC_nonce));
                     
                     NONCE_SENT_Set();                   
                     tmpavplist = AVPLIST(PAVP_NONCE);
@@ -686,14 +690,6 @@ pac_process(bytebuff_t * datain) {
 
                 EAP_RespTimerStop();
                 if (!(NONCE_SENT)) {
-                    if (os_get_random(pacs->sa->PaC_nonce,
-                            sizeof(pacs->sa->PaC_nonce)) < 0) {
-                        DEBUG("Nonce couldn't be generated");
-                    }
-                    dbg_hexdump(MSG_SEC, "Generated Nonce contents", 
-                            pacs->sa->PaC_nonce, sizeof(pacs->sa->PaC_nonce));
-                    
-
                     tmpavplist = AVPLIST(PAVP_NONCE, PAVP_EAP_PAYLOAD);
                     TX_PAN(respData, tmpavplist);
                     NONCE_SENT_Set();                   
