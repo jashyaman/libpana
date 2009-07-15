@@ -31,7 +31,7 @@ typedef struct paa_ctx {
 #define SF_NONCE_SENT           (1 << 0)
 #define SF_OPTIMIZED_INIT       (1 << 1) 
     
-    const pac_config_t * paaglobal;   //we want this to be readonly
+    const paa_config_t * paaglobal;   //we want this to be readonly
     
     /* EAP interface */
     eap_peer_config_t * eap_config;
@@ -56,8 +56,7 @@ typedef struct paa_ctx {
 
 #define EV_RTX_TIMEOUT           (1 << 10)
 #define EV_SESS_TIMEOUT          (1 << 11)
-#define EV_LIFETIME_SESS_TIMEOUT (1 << 12)
-#define EV_PAA_FOUND             (1 << 13)
+#define EV_PAA_FOUND             (1 << 12)
 
 } paa_ctx_t;
 
@@ -98,8 +97,6 @@ typedef struct paa_ctx {
 #define RTX_TIMEOUT_Set()       (ctx->event_occured |= EV_RTX_TIMEOUT)
 #define SESS_TIMEOUT            (ctx->event_occured & EV_SESS_TIMEOUT)
 #define SESS_TIMEOUT_Set()      (ctx->event_occured |= EV_SESS_TIMEOUT)
-#define LIFETIME_SESS_TIMEOUT           (ctx->event_occured & EV_LIFETIME_SESS_TIMEOUT)
-#define LIFETIME_SESS_TIMEOUT_Set()     (ctx->event_occured |= EV_LIFETIME_SESS_TIMEOUT)
 
 
 #define PAA_FOUND		(ctx->event_occured & EV_PAA_FOUND)
@@ -241,6 +238,14 @@ static void Retransmit(pana_session_t * pacs) {
     ctx->rtx_timer.deadline = time(NULL) + cfg->rtx_interval;
 }
 
+static Boolean Authorize(pana_session_t * pacs){
+    /*
+     * TODO: HERE MUST REGISTER SENDING ACL TO EP
+     */
+       
+    return TRUE;
+}
+
 static void EAP_Restart(pana_session_t * pacs) {
     /* MD5 has no special requirements to restart */
     /*
@@ -248,15 +253,20 @@ static void EAP_Restart(pana_session_t * pacs) {
      */
 }
 
+#define PAVP_RESULT_SUCCESS                 (PAVP_RESULT_CODE | (0x10000 << PANA_SUCCESS) )
+#define PAVP_RESULT_AUTHENTICATION_REJECTED (PAVP_RESULT_CODE | (0x10000 << PANA_AUTHENTICATION_REJECTED) )
+#define PAVP_RESULT_AUTHORIZATION_REJECTED  (PAVP_RESULT_CODE | (0x10000 << PANA_AUTHORIZATION_REJECTED) )
+
 
 #define AVPLIST(AVP...) paa_avplist_create(pacs, AVP, PAVP_NULL)
 
-static pana_avp_list_t paa_avplist_create(pana_session_t * pacs, pana_avp_codes_t AVP, ...) {
+static pana_avp_list_t paa_avplist_create(pana_session_t * pacs, uint32_t AVP, ...) {
     va_list ap;
     pana_avp_codes_t reqAVP = AVP;
     pana_avp_t * tmp_avp = NULL;
     paa_ctx_t * ctx = NULL;
     pana_avp_list_t tmpavplist = NULL;
+    uint8_t * tmpval = NULL;
     
     if (!pacs) {
         return NULL;
@@ -268,11 +278,18 @@ static pana_avp_list_t paa_avplist_create(pana_session_t * pacs, pana_avp_codes_
     
     va_start(ap,AVP);
     do {
-        switch (reqAVP) {
+        switch (reqAVP & 0xffff) {
         case PAVP_NONCE:
             if (pacs->sa == NULL) {
                 break;
             }
+            if (os_get_random(pacs->sa->PaC_nonce,
+                    sizeof(pacs->sa->PaC_nonce)) < 0) {
+                DEBUG("Nonce couldn't be generated");
+            }
+            dbg_hexdump(MSG_SEC, "Generated Nonce contents", 
+                    pacs->sa->PaC_nonce, sizeof(pacs->sa->PaC_nonce));
+
             tmp_avp = create_avp(PAVP_NONCE, FAVP_FLAG_CLEARED, 0,
                     pacs->sa->PaC_nonce, sizeof(pacs->sa->PaC_nonce));
             tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
@@ -284,6 +301,14 @@ static pana_avp_list_t paa_avplist_create(pana_session_t * pacs, pana_avp_codes_
             tmp_avp = create_avp(PAVP_EAP_PAYLOAD, FAVP_FLAG_CLEARED, 0,
                     bytebuff_data(ctx->eap_resp_payload),
                     ctx->eap_resp_payload->used);
+            tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
+            break;
+        case PAVP_RESULT_CODE:
+            tmpval = szalloc(uint32_t);
+            buff_insert_be32(tmpval, (reqAVP >> 16) & 0xffff);
+            tmp_avp = create_avp(PAVP_RESULT_CODE, FAVP_FLAG_CLEARED, 0,
+                    tmpval, sizeof(uint32_t));
+            tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
             break;
         }
         
@@ -295,23 +320,6 @@ static pana_avp_list_t paa_avplist_create(pana_session_t * pacs, pana_avp_codes_
     return tmpavplist;
 }
 
-static int PAR_RESULT_CODE(pana_packet_t * pktin) {
-    int res;
-    if (!pktin) {
-        return -1;
-    }
-    pana_avp_t * tmpavp = get_avp_by_code(pktin->pp_avp_list,
-            PAVP_RESULT_CODE, AVP_GET_FIRST);
-    if (!tmpavp) {
-        DEBUG("This packet does'nt have a result code");
-        return -1;
-    }
-    
-    res = bytes_to_be32(tmpavp->avp_value);
-    
-    free_avp(tmpavp);
-    return res;
-}
 
 
 static uint32_t paa_retrieve_sessID(bytebuff_t * datain ) {
@@ -445,7 +453,7 @@ pana_session_t *
 sess_list_insert (pana_session_t * dst_list,
                  pana_session_t * src_list)
 {
-    return avp_list_append(src_list, dst_list);  // :D
+    return sess_list_append(src_list, dst_list);  // :D
 }
 
 static pana_session_t * 
@@ -562,7 +570,8 @@ static void paa_remove_active_session(pana_session_t * sess) {
 }
 
 
-
+#define generate_pana_sa() (FALSE)
+#define new_key_available() (FALSE)
 
 static bytebuff_t *
 paa_process(pana_session_t * pacs, bytebuff_t * datain) {
@@ -595,7 +604,7 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
 //   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if (RTX_TIMEOUT && RTX_COUNTER < RTX_MAX_NUM) {
         clear_events();
-        Retransmit();
+        Retransmit(pacs);
     }
 //   - - - - - - - (Reach maximum number of transmissions)- - - - - -
 //   (RTX_TIMEOUT &&          Disconnect();              CLOSED
@@ -606,8 +615,8 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
     if ((RTX_TIMEOUT && RTX_COUNTER >= RTX_MAX_NUM) || 
         SESS_TIMEOUT) {
         clear_events();
-        Disconnect();
-        
+        Disconnect(pacs);
+        pacs->cstate = PAA_STATE_CLOSED;
     }
     
     
@@ -618,7 +627,7 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
 //   - - - - - - - - - - (liveness test initiated by peer)- - - - - -
 //   Rx:PNR[P]                Tx:PNA[P]();               (no change)
 //   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       if (pacs->cstate != PAC_STATE_INITIAL) {
+       if (pacs->cstate != PAA_STATE_INITIAL) {
            if (RX_PNR_P(pkt_in)) {
                /* reset the event status */
                clear_events();
@@ -632,7 +641,7 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
 //   - - - - - - - - - - - - (liveness test response) - - - - - - - -
 //   Rx:PNA[P]                None();                    (no change)
 //   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       if (pacs->cstate != PAC_STATE_WAIT_PNA_PING){
+       if (pacs->cstate != PAA_STATE_WAIT_PNA_PING){
            if (RX_PNA_P(pkt_in)) {
                clear_events();
                /* just discard the packet because it's not meant occur in this phase */
@@ -646,7 +655,7 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
 //   - - - - - - - -(Catch all event on closed state) - - - - - - - -
 //   ANY                      None();                    CLOSED
 //   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    if (pacs->cstate == PAC_STATE_CLOSED){
+    if (pacs->cstate == PAA_STATE_CLOSED){
         clear_events();
         /* just discard the packet because it's not meant occur in this phase */
     }
@@ -655,6 +664,475 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
     
     while(ctx->event_occured) {
         switch (pacs->cstate) {
+//   ------------------------------
+//   State: INITIAL (Initial State)
+//   ------------------------------
+        case  PAA_STATE_INITIAL:
+//   ------------------------+--------------------------+------------
+//    - - - - - - - - (PCI and PAA initiated PANA) - - - - - - - - -
+//   (Rx:PCI[] ||             if (OPTIMIZED_INIT ==      INITIAL
+//    PAC_FOUND)                  Set) {
+//                              EAP_Restart();
+//                              SessionTimerReStart
+//                               (FAILED_SESS_TIMEOUT);
+//                            }
+//                            else {
+//                              if (generate_pana_sa())
+//                                   Tx:PAR[S]("PRF-Algorithm",
+//                                      "Integrity-Algorithm");
+//                              else
+//                                   Tx:PAR[S]();
+//                            }
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            if (RX_PCI(pkt_in)) {
+                clear_events();
+                if (OPTIMIZED_INIT) {
+                    EAP_Restart(pacs);
+                    SessionTimerReStart(pacs, FAILED_SESS_TIMEOUT);
+                }
+                else {
+                    if (generate_pana_sa()) {
+                        tmpavplist = AVPLIST(PAVP_PRF_ALG,"Integrity-Algorithm");
+                        TX_PAR_S(respData, tmpavplist);
+                    }
+                    else {
+                        TX_PAR_S(respData, NULL);
+                    }
+                }
+                
+                pacs->cstate = PAA_STATE_INITIAL;
+            }
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//   EAP_REQUEST              if (generate_pana_sa())    INITIAL
+//                                Tx:PAR[S]("EAP-Payload",
+//                                   "PRF-Algorithm",
+//                                   "Integrity-Algorithm");
+//                            else
+//                                Tx:PAR[S]("EAP-Payload");
+//                            RtxTimerStart();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (EAP_REQUEST) {
+                clear_events();
+
+                if (generate_pana_sa()) {
+                    tmpavplist = AVPLIST(PAVP_EAP_PAYLOAD,PAVP_PRF_ALG,"Integrity-Algorithm");
+                    TX_PAR_S(respData, tmpavplist);
+                }
+                else{
+                    tmpavplist = AVPLIST(PAVP_EAP_PAYLOAD);
+                    TX_PAR_S(respData, tmpavplist);
+                }
+                RtxTimerStart(pacs, respData);
+
+                pacs->cstate = PAA_STATE_INITIAL;
+            }
+//   - - - - - - - - - - - - - - (PAN Handling)  - - - - - - - - - -
+//   Rx:PAN[S] &&             if (PAN.exist_avp          WAIT_EAP_MSG
+//   ((OPTIMIZED_INIT ==         ("EAP-Payload"))
+//     Unset) ||                TxEAP();
+//   PAN.exist_avp            else {
+//     ("EAP-Payload"))         EAP_Restart();
+//                              SessionTimerReStart
+//                               (FAILED_SESS_TIMEOUT);
+//                            }
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (RX_PAN_S(pkt_in) && 
+                    ((!OPTIMIZED_INIT) || exists_avp(pkt_in, PAVP_EAP_PAYLOAD))) {
+                clear_events();
+
+                if (exists_avp(pkt_in, PAVP_EAP_PAYLOAD)) {
+                    TxEAP(pacs, pkt_in);
+                }
+                else {
+                    EAP_Restart(pacs);
+                    SessionTimerReStart(pacs, FAILED_SESS_TIMEOUT);
+
+                }
+                
+                pacs->cstate = PAA_STATE_WAIT_EAP_MSG;
+            }
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//   Rx:PAN[S] &&             None();                    WAIT_PAN_OR_PAR
+//   (OPTIMIZED_INIT ==
+//     Set) &&
+//   ! PAN.exist_avp
+//    ("EAP-Payload")
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (RX_PAN_S(pkt_in) &&(OPTIMIZED_INIT) && 
+                    !exists_avp(pkt_in, PAVP_EAP_PAYLOAD)) {
+                clear_events();
+
+                // None();
+
+                pacs->cstate = PAA_STATE_WAIT_PAN_OR_PAR;
+            } break;
+//   -------------------
+//   State: WAIT_EAP_MSG
+//   -------------------
+        case PAA_STATE_WAIT_EAP_MSG:
+//   - - - - - - - - - - - -(Receiving EAP-Request)- - - - - - - - -
+//   EAP_REQUEST              if (NONCE_SENT==Unset) {   WAIT_PAN_OR_PAR
+//                              Tx:PAR[]("Nonce",
+//                                       "EAP-Payload");
+//                              NONCE_SENT=Set;
+//                            }
+//                            else
+//                              Tx:PAR[]("EAP-Payload");
+//                            RtxTimerStart();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            if (EAP_REQUEST) {
+                clear_events();
+
+                if (!NONCE_SENT) {
+                    tmpavplist = AVPLIST(PAVP_NONCE, PAVP_EAP_PAYLOAD);
+                    TX_PAR(respData, tmpavplist);
+                    NONCE_SENT_Set();
+                }
+                else {
+                              tmpavplist = AVPLIST(PAVP_EAP_PAYLOAD);
+			TX_PAR(respData, tmpavplist);
+             }
+                            RtxTimerStart(pacs, respData);
+                
+                pacs->cstate = PAA_STATE_WAIT_PAN_OR_PAR;
+            }
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//   - - - - - - - - - - -(Receiving EAP-Success/Failure) - - - - -
+//   EAP_FAILURE              PAR.RESULT_CODE =          WAIT_FAIL_PAN
+//                              PANA_AUTHENTICATION_
+//                                  REJECTED;
+//                            Tx:PAR[C]("EAP-Payload");
+//                            RtxTimerStart();
+//                            SessionTimerStop();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (EAP_FAILURE) {
+                clear_events();
+
+
+                tmpavplist = AVPLIST(PAVP_RESULT_AUTHENTICATION_REJECTED,
+                        PAVP_EAP_PAYLOAD);
+                TX_PAR_C(respData, tmpavplist);
+                RtxTimerStart(pacs, respData);
+                SessionTimerStop(pacs);
+                
+                pacs->cstate = PAA_STATE_WAIT_FAIL_PAN;
+            }
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//   EAP_SUCCESS &&           PAR.RESULT_CODE =          WAIT_SUCC_PAN
+//   Authorize()                PANA_SUCCESS;
+//                            if (new_key_available())
+//                              Tx:PAR[C]("EAP-Payload",
+//                                   "Key-Id");
+//                            else
+//                              Tx:PAR[C]("EAP-Payload");
+//                            RtxTimerStart();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (EAP_SUCCESS  && Authorize(pacs)) {
+                clear_events();
+                
+
+                if (new_key_available()) {
+                    tmpavplist = AVPLIST(PAVP_RESULT_SUCCESS,
+                            PAVP_EAP_PAYLOAD,"Key-Id");
+                    TX_PAR_C(respData, tmpavplist);
+                } else{
+                    tmpavplist = AVPLIST(PAVP_RESULT_SUCCESS, PAVP_EAP_PAYLOAD);
+                    TX_PAR_C(respData, tmpavplist);}
+                RtxTimerStart(pacs, respData);
+
+                pacs->cstate = PAA_STATE_WAIT_SUCC_PAN;
+            }
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//   EAP_SUCCESS &&           PAR.RESULT_CODE =          WAIT_FAIL_PAN
+//   !Authorize()               PANA_AUTHORIZATION_
+//                                REJECTED;
+//                            if (new_key_available())
+//                              Tx:PAR[C]("EAP-Payload",
+//                                   "Key-Id");
+//                            else
+//                              Tx:PAR[C]("EAP-Payload");
+//                            RtxTimerStart();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (EAP_SUCCESS && !Authorize(pacs)) {
+                clear_events();
+
+                if (new_key_available()) {
+                    tmpavplist = AVPLIST(PAVP_RESULT_AUTHORIZATION_REJECTED ,PAVP_EAP_PAYLOAD,"Key-Id");
+                    TX_PAR_C(respData, tmpavplist);
+                }else{
+                    tmpavplist = AVPLIST(PAVP_RESULT_AUTHORIZATION_REJECTED, PAVP_EAP_PAYLOAD);
+                    TX_PAR_C(respData, tmpavplist);
+                }
+                RtxTimerStart(pacs, respData);
+                
+                pacs->cstate = PAA_STATE_WAIT_FAIL_PAN;
+            }
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//    - - - - - (Receiving EAP-Timeout or invalid message) - - - - -
+//   EAP_TIMEOUT ||           SessionTimerStop();        CLOSED
+//   EAP_DISCARD              Disconnect();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (EAP_TIMEOUT || EAP_DISCARD) {
+                clear_events();
+
+                SessionTimerStop(pacs);
+                Disconnect(pacs);
+                
+                pacs->cstate = PAA_STATE_CLOSED;
+            } break;
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+//   --------------------
+//   State: WAIT_SUCC_PAN
+//   --------------------
+        case PAA_STATE_WAIT_SUCC_PAN:
+//   - - - - - - - - - - - - - (PAN Processing)- - - - - - - - - - -
+//   Rx:PAN[C]                RtxTimerStop();            OPEN
+//                            SessionTimerReStart
+//                              (LIFETIME_SESS_TIMEOUT);
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            if (RX_PAN_C(pkt_in)) {
+                clear_events();
+
+                RtxTimerStop(pacs);
+                SessionTimerReStart(pacs, LIFETIME_SESS_TIMEOUT);
+
+                pacs->cstate = PAA_STATE_OPEN;
+            } break;
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+//   --------------------
+//   State: WAIT_FAIL_PAN
+//   --------------------
+        case PAA_STATE_WAIT_FAIL_PAN:
+//   - - - - - - - - - - - - - - (PAN Processing)- - - - - - - - - -
+//   Rx:PAN[C]                RtxTimerStop();            CLOSED
+//                            Disconnect();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            if (RX_PAN_C(pkt_in)) {
+                clear_events();
+
+                RtxTimerStop(pacs);
+                Disconnect(pacs);
+                
+                pacs->cstate = PAA_STATE_CLOSED;
+            } break;
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+//   -----------
+//   State: OPEN
+//   -----------
+        case PAA_STATE_OPEN:
+//   - - - - - - - - (re-authentication initiated by PaC) - - - - - -
+//   Rx:PNR[A]                NONCE_SENT=Unset;          WAIT_EAP_MSG
+//                            EAP_Restart();
+//                            Tx:PNA[A]();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            if (RX_PNR_A(pkt_in)) {
+                clear_events();
+
+                NONCE_SENT_Unset();
+                EAP_Restart(pacs);
+                TX_PNA_A(respData, NULL);
+
+                pacs->cstate = PAA_STATE_WAIT_EAP_MSG;
+            }
+//   - - - - - - - - (re-authentication initiated by PAA)- - - - - -
+//   REAUTH ||                NONCE_SENT=Unset;          WAIT_EAP_MSG
+//   REAUTH_TIMEOUT           EAP_Restart();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            /* will require the PaC to reauth */
+            else if (REAUTH ) {
+                clear_events();
+
+                NONCE_SENT_Unset();
+                EAP_Restart(pacs);
+                
+                pacs->cstate = PAA_STATE_WAIT_EAP_MSG;
+            }
+//   - - (liveness test based on PNR-PNA exchange initiated by PAA)-
+//   PANA_PING                Tx:PNR[P]();               WAIT_PNA_PING
+//                            RtxTimerStart();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (PANA_PING) {
+                clear_events();
+
+                TX_PNR_P(respData, NULL);
+                RtxTimerStart(pacs, respData);
+                
+                pacs->cstate = PAA_STATE_WAIT_PNA_PING;
+            }
+//   - - - - - - - - (Session termination initated from PAA) - - - -
+//   TERMINATE                Tx:PTR[]();                SESS_TERM
+//                            SessionTimerStop();
+//                            RtxTimerStart();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (TERMINATE) {
+                clear_events();
+
+                TX_PTR(respData, NULL);
+                SessionTimerStop(pacs);
+                RtxTimerStart(pacs, respData);
+                
+                pacs->cstate = PAA_STATE_SESS_TERM;
+            }
+//   - - - - - - - - (Session termination initated from PaC) - - - -
+//   Rx:PTR[]                 Tx:PTA[]();                CLOSED
+//                            SessionTimerStop();
+//                            Disconnect();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (RX_PTR(pkt_in)) {
+                clear_events();
+
+                TX_PTA(respData, NULL); 
+                SessionTimerStop(pacs);
+                Disconnect(pacs);
+       
+                pacs->cstate = PAA_STATE_CLOSED;
+            } break;
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+//   --------------------
+//   State: WAIT_PNA_PING
+//   --------------------
+        case PAA_STATE_WAIT_PNA_PING:
+//   - - - - - - - - - - - - - -(PNA processing) - - - - - - - - - -
+//   Rx:PNA[P]                RtxTimerStop();            OPEN
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            if (RX_PNA_P(pkt_in)) {
+                clear_events();
+
+                RtxTimerStop(pacs);
+                
+                pacs->cstate = PAA_STATE_OPEN;
+            }
+//   - - - - - - - - (re-authentication initiated by PaC) - - - - - -
+//   Rx:PNR[A]                RtxTimerStop();            WAIT_EAP_MSG
+//                            NONCE_SENT=Unset;
+//                            EAP_Restart();
+//                            Tx:PNA[A]();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (RX_PNR_A(pkt_in)) {
+                clear_events();
+
+                RtxTimerStop(pacs);
+                NONCE_SENT_Unset();
+                EAP_Restart(pacs);
+                TX_PNA_A(respData, NULL);
+                
+                pacs->cstate = PAA_STATE_WAIT_EAP_MSG;
+            }
+//   - - - - - - - - (Session termination initated from PaC) - - - -
+//   Rx:PTR[]                 RtxTimerStop();            CLOSED
+//                            Tx:PTA[]();
+//                            SessionTimerStop();
+//                            Disconnect();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if ( RX_PTR(pkt_in)) {
+                clear_events();
+
+                RtxTimerStop(pacs);
+                TX_PTA(respData, NULL);
+                SessionTimerStop(pacs);
+                Disconnect(pacs);
+                
+                pacs->cstate = PAA_STATE_CLOSED;
+            } break;
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+//   ----------------------
+//   State: WAIT_PAN_OR_PAR
+//   ----------------------
+        case PAA_STATE_WAIT_PAN_OR_PAR:
+//   - - - - - - - - - - - - - (PAR Processing)- - - - - - - - - - -
+//   Rx:PAR[]                 TxEAP();                   WAIT_EAP_MSG
+//                            RtxTimerStop();
+//                            Tx:PAN[]();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            if (RX_PAR(pkt_in)) {
+                clear_events();
+
+                TxEAP(pacs, pkt_in); 
+                RtxTimerStop(pacs);
+                TX_PAN(respData, NULL);
+                
+                pacs->cstate = PAA_STATE_WAIT_EAP_MSG;
+            }
+//   - - - - - - (Pass EAP Response to the EAP authenticator)- - - -
+//   Rx:PAN[] &&              TxEAP();                   WAIT_EAP_MSG
+//   PAN.exist_avp            RtxTimerStop();
+//   ("EAP-Payload")
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (RX_PAN(pkt_in) && exists_avp(pkt_in, PAVP_EAP_PAYLOAD)) {
+                clear_events();
+
+                TxEAP(pacs, pkt_in);
+                RtxTimerStop(pacs);      
+
+                pacs->cstate = PAA_STATE_WAIT_EAP_MSG;
+            }
+//   - - - - - - - - - - (PAN without an EAP response) - - - - - - -
+//   Rx:PAN[] &&              RtxTimerStop();            WAIT_PAN_OR_PAR
+//   !PAN.exist_avp
+//   ("EAP-Payload")
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (RX_PAN(pkt_in) && !exists_avp(pkt_in, PAVP_EAP_PAYLOAD)) {
+                clear_events();
+
+                RtxTimerStop(pacs);
+                
+                pacs->cstate = PAA_STATE_WAIT_PAN_OR_PAR;
+            }
+//   - - - - - - - - - - - -(EAP retransmission) - - - - - - - - - -
+//   EAP_REQUEST              RtxTimerStop();            WAIT_PAN_OR_PAR
+//                            Tx:PAR[]("EAP-Payload");
+//                            RtxTimerStart();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (EAP_REQUEST) {
+                clear_events();
+
+                RtxTimerStop(pacs);
+                tmpavplist = AVPLIST(PAVP_EAP_PAYLOAD);
+                TX_PAR(respData, tmpavplist);  
+                RtxTimerStart(pacs, respData);
+ 
+                pacs->cstate = PAA_STATE_WAIT_PAN_OR_PAR;
+            }
+//   - - - - - - - (EAP authentication timeout or failure)- - - - -
+//   EAP_FAILURE ||           RtxTimerStop();            CLOSED
+//   EAP_TIMEOUT ||           SessionTimerStop();
+//   EAP_DISCARD              Disconnect();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            else if (EAP_FAILURE || EAP_TIMEOUT ||EAP_DISCARD ) {
+                clear_events();
+
+                RtxTimerStop(pacs); 
+                SessionTimerStop(pacs);
+                Disconnect(pacs);
+  
+                pacs->cstate = PAA_STATE_CLOSED;
+            } break;
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+//   ----------------
+//   State: SESS_TERM
+//   ----------------
+        case PAA_STATE_SESS_TERM:
+//   - - - - - - - - - - - - - -(PTA processing) - - - - - - - - - -
+//   Rx:PTA[]                 RtxTimerStop();            CLOSED
+//                            Disconnect();
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            if (RX_PTA(pkt_in)) {
+                clear_events();
+
+                RtxTimerStop(pacs);
+                Disconnect(pacs);
+                
+                pacs->cstate = PAA_STATE_CLOSED;
+            }
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        
+        
             /* End switch */
         }
     
@@ -675,7 +1153,7 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
 
 
 int
-paa_main(const pac_config_t * const global_cfg) {
+paa_main(const paa_config_t * const global_cfg) {
     cfg = global_cfg;
     struct sockaddr_in paa_pana_sockaddr;
     struct sockaddr_in paa_ep_sockaddr;
@@ -795,6 +1273,9 @@ paa_main(const pac_config_t * const global_cfg) {
                     pacs_list = sess_list_insert(pacs_list, pacs);
                     PKT_RECVD_Set();
                     txbuff = paa_process(pacs, rxbuff);
+                    if (pacs->cstate == PAA_STATE_CLOSED) {
+                        paa_remove_active_session(pacs);
+                    }
                 }
                 else {
                     DEBUG("New session could not be created");
@@ -808,6 +1289,10 @@ paa_main(const pac_config_t * const global_cfg) {
                         pacs->pac_ip_port.port == peer_ip_port.port) {
                     PKT_RECVD_Set();
                     txbuff = paa_process(pacs, rxbuff);
+                    if (pacs->cstate == PAA_STATE_CLOSED) {
+                        paa_remove_active_session(pacs);
+                    }
+
                 }
                 else {
                     DEBUG("!!!!!!!!!!!!!SESSION Hjacking Attempted!!!!!!!!!!!!!!!!!!");
@@ -827,6 +1312,8 @@ paa_main(const pac_config_t * const global_cfg) {
                 }
                 free_bytebuff(txbuff);
             }
+            
+            
         }
 
         /*
@@ -844,11 +1331,17 @@ paa_main(const pac_config_t * const global_cfg) {
         if (TIMER_EXPIRED(ctx->rtx_timer)) {
             RTX_TIMEOUT_Set();
             paa_process(pacs, NULL);
+            if (pacs->cstate == PAA_STATE_CLOSED) {
+                paa_remove_active_session(pacs);
+            }
         }
         
         if (TIMER_EXPIRED(ctx->session_timer)) {
             SESS_TIMEOUT_Set();
             paa_process(pacs, NULL);
+            if (pacs->cstate == PAA_STATE_CLOSED) {
+                paa_remove_active_session(pacs);
+            }
         }
     }
     
