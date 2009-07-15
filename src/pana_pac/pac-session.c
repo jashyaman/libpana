@@ -55,7 +55,6 @@ typedef struct pac_ctx {
 
 #define EV_RTX_TIMEOUT           (1 << 10)
 #define EV_SESS_TIMEOUT          (1 << 11)
-#define EV_LIFETIME_SESS_TIMEOUT (1 << 12)
 
 
 } pac_ctx_t;
@@ -98,8 +97,6 @@ typedef struct pac_ctx {
 #define RTX_TIMEOUT_Set()       (ctx->event_occured |= EV_RTX_TIMEOUT)
 #define SESS_TIMEOUT    	(ctx->event_occured & EV_SESS_TIMEOUT)
 #define SESS_TIMEOUT_Set()	(ctx->event_occured |= EV_SESS_TIMEOUT)
-#define LIFETIME_SESS_TIMEOUT		(ctx->event_occured & EV_LIFETIME_SESS_TIMEOUT)
-#define LIFETIME_SESS_TIMEOUT_Set()	(ctx->event_occured |= EV_LIFETIME_SESS_TIMEOUT)
 
 #define NONCE_SENT         (ctx->stats_flags & SF_NONCE_SENT)
 #define NONCE_SENT_Set()   (ctx->stats_flags |= SF_NONCE_SENT)
@@ -382,6 +379,7 @@ static pana_avp_list_t pac_avplist_create(pana_session_t * pacs, pana_avp_codes_
             tmp_avp = create_avp(PAVP_EAP_PAYLOAD, FAVP_FLAG_CLEARED, 0,
                     bytebuff_data(ctx->eap_resp_payload),
                     ctx->eap_resp_payload->used);
+            tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
             break;
         }
         
@@ -437,6 +435,7 @@ pac_process(bytebuff_t * datain) {
         SESS_TIMEOUT) {
         clear_events();
         Disconnect();
+        pacs->cstate = PAC_STATE_CLOSED;
         
     }
 
