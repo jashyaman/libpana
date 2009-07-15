@@ -46,7 +46,7 @@ static int process_args(char * argv[], int argc) {
                 puts("Incorrect port number: should be in 0-65365\n");
                 return ERR_BADARGS;
             }
-            global_cfg.paa.port = tmp_parsing_val;
+            global_cfg.paa_pana.port = tmp_parsing_val;
         }
         else if ((strcmp(argv[ctoken++], "-e") == 0) && !(flags & CMD_FLAG_E)) {
             if (!(tmp_ipporv = str_to_ip_port(argv[ctoken++]))) {
@@ -54,7 +54,7 @@ static int process_args(char * argv[], int argc) {
                 return ERR_BADARGS;
             }
             global_cfg.ep = *tmp_ipporv;
-            free(tmp_ipporv);
+            os_free(tmp_ipporv);
         }
         else if ((strcmp(argv[ctoken++], "-c") == 0) && !(flags & CMD_FLAG_C)) {
             nasd_config_file = argv[ctoken++];
@@ -74,11 +74,35 @@ int process_config_files() {
     /*
      * TODO: implement parsing of config and dhcp-lease file
      */
-    global_cfg.ep = *str_to_ip_port("192.168.1.100:9800");
+    ip_port_t * tmp_iport;
+
+    tmp_iport = str_to_ip_port("192.168.1.1:8001");
+    global_cfg.ep= *tmp_iport;
+    os_free(tmp_iport);
+
+    tmp_iport = str_to_ip_port("0.0.0.0:7000");
+    global_cfg.paa_pana= *tmp_iport;
+    os_free(tmp_iport);
+    
+    tmp_iport = str_to_ip_port("0.0.0.0:8000");
+    global_cfg.paa_ep= *tmp_iport;
+    os_free(tmp_iport);
+    
+    
+    global_cfg.eap_cfg = malloc(sizeof(pana_eap_peer_config_t));
+    global_cfg.eap_cfg->identity = "alex.antone@gmail.com";
+    global_cfg.eap_cfg->identity_len = strlen(global_cfg.eap_cfg->identity);
+    global_cfg.eap_cfg->password = "CLEARTEXT TEST PASSWORD";
+    global_cfg.eap_cfg->password_len = strlen(global_cfg.eap_cfg->password);
+    global_cfg.rtx_interval = 10;
+    global_cfg.rtx_max_count = 4;
+    global_cfg.failed_sess_timeout = 60;  // 5 min
+    
+    return RES_CFG_FILES_OK;
     return RES_CFG_FILES_OK;
 }
 
-int main(char * argv[], int argc)
+int main(int argc, char * argv[])
 {
     int exit_code = 0;
     

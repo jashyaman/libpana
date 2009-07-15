@@ -1,0 +1,77 @@
+   Rx:PNR[P]                Tx:PNA[P]();               (no change)
+   Rx:PNA[P]                None();                    (no change)
+   AUTH_USER                Tx:PCI[]();                INITIAL
+   Rx:PAR[S] &&             EAP_Restart();             WAIT_PAA
+                                Tx:PAN[S]("PRF-Algorithm",
+                                Tx:PAN[S]();
+   Rx:PAR[S] &&             EAP_Restart();             INITIAL
+   Rx:PAR[S] &&             EAP_Restart();             WAIT_EAP_MSG
+                                Tx:PAN[S]("PRF-Algorithm",
+                                Tx:PAN[S]();
+                                Tx:PAN[S]("EAP-Payload",
+                                Tx:PAN[S]("EAP-Payload");
+   Rx:PAR[] &&              RtxTimerStop();            WAIT_EAP_MSG
+                              Tx:PAN[]("Nonce");
+                              Tx:PAN[]();
+   Rx:PAR[] &&              RtxTimerStop();            WAIT_EAP_MSG
+   Rx:PAN[]                 RtxTimerStop();            WAIT_PAA
+   Rx:PAR[C] &&             TxEAP();                   WAIT_EAP_RESULT
+   Rx:PAR[C] &&             if (PAR.exist_avp          WAIT_EAP_RESULT_
+                              Tx:PAN[]("EAP-Payload",
+                              Tx:PAN[]("EAP-Payload");
+   !eap_piggyback()         Tx:PAR[]("EAP-Payload");
+   EAP_RESP_TIMEOUT &&      Tx:PAN[]();                WAIT_PAA
+   EAP_DISCARD &&           Tx:PAN[]();                CLOSED
+                             Tx:PAN[C]("Key-Id");
+                             Tx:PAN[C]();
+   EAP_FAILURE             Tx:PAN[C]();                CLOSED
+                             Tx:PAN[C]("Key-Id");
+                             Tx:PAN[C]();
+   PANA_PING                Tx:PNR[P]();               WAIT_PNA_PING
+                            Tx:PNR[A]();
+   Rx:PAR[]                 EAP_RespTimerStart();      WAIT_EAP_MSG
+                              Tx:PAN[]("Nonce");
+   Rx:PTR[]                 Tx:PTA[]();                CLOSED
+   TERMINATE                Tx:PTR[]();                SESS_TERM
+   Rx:PNA[A]                RtxTimerStop();            WAIT_PAA
+   Rx:PTR[]                 RtxTimerStop();            CLOSED
+                            Tx:PTA[]();
+   Rx:PNA[P]                RtxTimerStop();            OPEN
+   Rx:PAR[]                 RtxTimerStop();            WAIT_EAP_MSG
+                              Tx:PAN[]("Nonce");
+   Rx:PTR[]                 RtxTimerStop();            CLOSED
+                            Tx:PTA[]();
+   Rx:PTA[]                 Disconnect();              CLOSED
+   (Rx:PCI[] ||             if (OPTIMIZED_INIT ==      INITIAL
+                                   Tx:PAR[S]("PRF-Algorithm",
+                                   Tx:PAR[S]();
+                                Tx:PAR[S]("EAP-Payload",
+                                Tx:PAR[S]("EAP-Payload");
+   Rx:PAN[S] &&             if (PAN.exist_avp          WAIT_EAP_MSG
+   Rx:PAN[S] &&             None();                    WAIT_PAN_OR_PAR
+                              Tx:PAR[]("Nonce",
+                              Tx:PAR[]("EAP-Payload");
+                            Tx:PAR[C]("EAP-Payload");
+                              Tx:PAR[C]("EAP-Payload",
+                              Tx:PAR[C]("EAP-Payload");
+                              Tx:PAR[C]("EAP-Payload",
+                              Tx:PAR[C]("EAP-Payload");
+   Rx:PAN[C]                RtxTimerStop();            OPEN
+   Rx:PAN[C]                RtxTimerStop();            CLOSED
+   Rx:PNR[A]                NONCE_SENT=Unset;          WAIT_EAP_MSG
+                            Tx:PNA[A]();
+   PANA_PING                Tx:PNR[P]();               WAIT_PNA_PING
+   TERMINATE                Tx:PTR[]();                SESS_TERM
+   Rx:PTR[]                 Tx:PTA[]();                CLOSED
+   Rx:PNA[P]                RtxTimerStop();            OPEN
+   Rx:PNR[A]                RtxTimerStop();            WAIT_EAP_MSG
+                            Tx:PNA[A]();
+   Rx:PTR[]                 RtxTimerStop();            CLOSED
+                            Tx:PTA[]();
+   Rx:PAR[]                 TxEAP();                   WAIT_EAP_MSG
+                            Tx:PAN[]();
+   Rx:PAN[] &&              TxEAP();                   WAIT_EAP_MSG
+   Rx:PAN[] &&              RtxTimerStop();            WAIT_PAN_OR_PAR
+                            Tx:PAR[]("EAP-Payload");
+   Rx:PTA[]                 RtxTimerStop();            CLOSED
+  $$PAA-STATES ------------------END----------------------------------

@@ -42,7 +42,7 @@ typedef struct pac_ctx {
     /* Events */
     uint32_t event_occured;
 #define EV_CLEAR                0
-#define EV_PKT_RECVD                   (1 << 0)
+#define EV_PKT_RECVD            (1 << 0)
 #define EV_AUTH_USER            (1 << 1)
 #define EV_EAP_RESPONSE         (1 << 2)
 #define EV_EAP_DISCARD          (1 << 3)
@@ -52,6 +52,11 @@ typedef struct pac_ctx {
 #define EV_PANA_PING            (1 << 7)
 #define EV_REAUTH               (1 << 8)
 #define EV_TERMINATE            (1 << 9)
+
+#define EV_RTX_TIMEOUT           (1 << 10)
+#define EV_SESS_TIMEOUT          (1 << 11)
+#define EV_LIFETIME_SESS_TIMEOUT (1 << 12)
+
 
 } pac_ctx_t;
 
@@ -89,6 +94,12 @@ typedef struct pac_ctx {
 #define TERMINATE	(ctx->event_occured & EV_TERMINATE)
 #define TERMINATE_Set()	(ctx->event_occured |= EV_TERMINATE)
 
+#define RTX_TIMEOUT             (ctx->event_occured & EV_RTX_TIMEOUT)
+#define RTX_TIMEOUT_Set()       (ctx->event_occured |= EV_RTX_TIMEOUT)
+#define SESS_TIMEOUT    	(ctx->event_occured & EV_SESS_TIMEOUT)
+#define SESS_TIMEOUT_Set()	(ctx->event_occured |= EV_SESS_TIMEOUT)
+#define LIFETIME_SESS_TIMEOUT		(ctx->event_occured & EV_LIFETIME_SESS_TIMEOUT)
+#define LIFETIME_SESS_TIMEOUT_Set()	(ctx->event_occured |= EV_LIFETIME_SESS_TIMEOUT)
 
 #define NONCE_SENT         (ctx->stats_flags & SF_NONCE_SENT)
 #define NONCE_SENT_Set()   (ctx->stats_flags |= SF_NONCE_SENT)
@@ -393,9 +404,40 @@ pac_process(bytebuff_t * datain) {
             return NULL;
         }
     }
+
+#define RTX_COUNTER (ctx->rtx_timer.count)
+#define RTX_MAX_NUM (cfg->rtx_max_count)
     
-   if (PKT_RECVD) {
+//   ----------
+//   State: ANY
+//   ----------
+//   - - - - - - - - - - - - - (Re-transmissions)- - - - - - - - - -
+//   RTX_TIMEOUT &&           Retransmit();              (no change)
+//   RTX_COUNTER<
+//   RTX_MAX_NUM
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    if (RTX_TIMEOUT && RTX_COUNTER < RTX_MAX_NUM) {
+        clear_events();
+        Retransmit();
+    }
+//   - - - - - - - (Reach maximum number of transmissions)- - - - - -
+//   (RTX_TIMEOUT &&          Disconnect();              CLOSED
+//    RTX_COUNTER>=
+//    RTX_MAX_NUM) ||
+//   SESS_TIMEOUT
+//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    if ((RTX_TIMEOUT && RTX_COUNTER >= RTX_MAX_NUM) || 
+        SESS_TIMEOUT) {
+        clear_events();
+        Disconnect();
+        
+    }
+
+    if (PKT_RECVD) {
+//   -------------------------
 //   State: ANY except INITIAL
+//   -------------------------
+//
 //   - - - - - - - - - - (liveness test initiated by peer)- - - - - -
 //   Rx:PNR[P]                Tx:PNA[P]();               (no change)
 //   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -418,6 +460,7 @@ pac_process(bytebuff_t * datain) {
            }
        }
    }    
+
 //   State: CLOSED
 //   - - - - - - - -(Catch all event on closed state) - - - - - - - -
 //   ANY                      None();                    CLOSED
@@ -1064,47 +1107,39 @@ pac_main(const pac_config_t * const global_cfg) {
             }
         }
         
+        /*
+         * Then check timers
+         */
+#define TIMER_EXPIRED(timer) ((timer).enabled && time(NULL) >= (timer).deadline)
         
-//   - - - - - - - - - - - - - (Re-transmissions)- - - - - - - - - -
-//   RTX_TIMEOUT &&           Retransmit();              (no change)
-//   RTX_COUNTER<
-//   RTX_MAX_NUM
-//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        if (ctx->rtx_timer.enabled && time(NULL) >= ctx->rtx_timer.deadline &&
-                ctx->rtx_timer.count < cfg->rtx_max_count) {
-            Retransmit();
+        if (TIMER_EXPIRED(ctx->rtx_timer)) {
+            RTX_TIMEOUT_Set();
+            pac_process(NULL);
         }
         
-//   - - - - - - - (Reach maximum number of transmissions)- - - - - -
-//   (RTX_TIMEOUT &&          Disconnect();              CLOSED
-//    RTX_COUNTER>=
-//    RTX_MAX_NUM) ||
-//   SESS_TIMEOUT
-//   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        if ((ctx->rtx_timer.enabled && time(NULL) >= ctx->rtx_timer.deadline &&
-                ctx->rtx_timer.count >= cfg->rtx_max_count) &&
-                ctx->session_timer.enabled && time(NULL) >= ctx->session_timer.deadline) {
-            Disconnect();
-            pacs->cstate = PAC_STATE_CLOSED;
+        if (TIMER_EXPIRED(ctx->session_timer)) {
+            SESS_TIMEOUT_Set();
+            pac_process(NULL);
         }
-        
+
         /*
          * Check reauth and start the procedure if required
          */
-        if(pacs->cstate == PAC_STATE_OPEN && 
-                (ctx->reauth_timer.enabled && time(NULL) >= ctx->reauth_timer.deadline)) {
+        if (pacs->cstate == PAC_STATE_OPEN &&
+                TIMER_EXPIRED(ctx->reauth_timer)) {
             REAUTH_Set();
+            pac_process(NULL);
         }
         
     }
     
     free_bytebuff(rxbuff);
     free_bytebuff(txbuff);
-    free(ctx->eap_config);
-    free(ctx->eap_ret);
-    free(pacs->sa);
-    free(pacs->ctx);
-    free(pacs);
+    os_free(ctx->eap_config);
+    os_free(ctx->eap_ret);
+    os_free(pacs->sa);
+    os_free(pacs->ctx);
+    os_free(pacs);
     
     
     close(sockfd);

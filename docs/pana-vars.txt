@@ -1,0 +1,374 @@
+
+   $$COMMON_PROCS ---------------------------------------------------------------------------    	
+6.1.  Common Procedures
+
+   void None()
+
+      A null procedure, i.e., nothing is done.
+
+   void Disconnect()
+
+      A procedure to delete the PANA session as well as the
+      corresponding EAP session and authorization state.
+
+   boolean Authorize()
+
+      A procedure to create or modify authorization state.  It returns
+      TRUE if authorization is successful.  Otherwise, it returns FALSE.
+      It is assumed that Authorize() procedure of PaC state machine
+      always returns TRUE.  In the case that a non-key-generating EAP
+      method is used but a PANA SA is required after successful
+      authentication (generate_pana_sa() returns TRUE), Authorize()
+      procedure must return FALSE.
+
+   void Tx:PANA_MESSAGE_NAME[flag](AVPs)
+
+      A procedure to send a PANA message to its peering PANA entity.
+      The "flag" argument contains one or more flag (e.g., Tx:PAR[C]) to
+      be set to the message, except for 'R' (Request) flag.  The "AVPs"
+      contains a list of names of optional AVPs to be inserted in the
+      message, except for AUTH AVP.
+
+      This procedure includes the following action before actual
+      transmission:
+
+             if (flag==S)
+               PANA_MESSAGE_NAME.S_flag=Set;
+             if (flag==C)
+               PANA_MESSAGE_NAME.C_flag=Set;
+             if (flag==A)
+               PANA_MESSAGE_NAME.A_flag=Set;
+             if (flag==P)
+               PANA_MESSAGE_NAME.P_flag=Set;
+             PANA_MESSAGE_NAME.insert_avp(AVPs);
+             if (key_available())
+               PANA_MESSAGE_NANE.insert_avp("AUTH");
+
+   void TxEAP()
+
+      A procedure to send an EAP message to the EAP state machine it
+      interfaces to.
+
+   void RtxTimerStart()
+
+      A procedure to start the retransmission timer, reset RTX_COUNTER
+      variable to zero and set an appropriate value to RTX_MAX_NUM
+      variable.  Note that RTX_MAX_NUM is assumed to be set to the same
+      default value for all messages.  However, implementations may also
+      reset RTX_MAX_NUM in this procedure and its value may vary
+      depending on the message that was sent.
+
+   void RtxTimerStop()
+
+      A procedure to stop the retransmission timer.
+
+   void SessionTimerReStart(TIMEOUT)
+
+      A procedure to (re)start PANA session timer.  TIMEOUT specifies
+      the expiration time associated of the session timer.  Expiration
+      of TIMEOUT will trigger a SESS_TIMEOUT event.
+
+   void SessionTimerStop()
+
+      A procedure to stop the current PANA session timer.
+
+   void Retransmit()
+
+      A procedure to retransmit a PANA message and increment RTX_COUNTER
+      by one(1).
+
+   void EAP_Restart()
+
+      A procedure to (re)start an EAP conversation resulting in the re-
+      initialization of an existing EAP session.
+
+   void PANA_MESSAGE_NAME.insert_avp("AVP_NAME1", "AVP_NAME2",...)
+
+      A procedure to insert AVPs for each specified AVP name in the list
+      of AVP names in the PANA message.  When an AVP name ends with "*",
+      zero, one or more AVPs are inserted, otherwise one AVP is
+      inserted.
+
+   boolean PANA_MESSAGE_NAME.exist_avp("AVP_NAME")
+
+      A procedure that checks whether an AVP of the specified AVP name
+      exists in the specified PANA message and returns TRUE if the
+      specified AVP is found, otherwise returns FALSE.
+
+   boolean generate_pana_sa()
+
+      A procedure to check whether the EAP method being used generates
+      keys and that a PANA SA will be established on successful
+      authentication.  For the PaC, the procedure is also used to check
+      and match the PRF and Integrity algorithm AVPs advertised by the
+      PAA in PAR[S] message.  For the PAA, it is used to indicate
+      whether a PRF and Integrity algorithm AVPs will be sent in the
+      PAR[S].  This procedure will return true if a PANA SA will be
+      generated.  Otherwise, it returns FALSE.
+
+   boolean key_available()
+
+      A procedure to check whether the PANA session has a PANA_AUTH_KEY.
+      If the state machine already has a PANA_AUTH_KEY, it returns TRUE.
+      If the state machine does not have a PANA_AUTH_KEY, it tries to
+      retrieve an MSK from the EAP entity.  If an MSK is retrieved, it
+      computes a PANA_AUTH_KEY from the MSK and returns TRUE.
+      Otherwise, it returns FALSE.
+   $$COMMON-PROCS --------------------------END----------------------------------------------
+
+   $$COMMON-VARS ----------------------------------------------------------------------------
+6.2.  Common Variables
+
+   PAR.RESULT_CODE
+
+      This variable contains the Result-Code AVP value in the PANA-Auth-
+      Request message in process.  When this variable carries
+      PANA_SUCCESS it is assumed that the PAR message always contains an
+      EAP-Payload AVP which carries an EAP-Success message.
+
+   NONCE_SENT
+
+      This variable is set to TRUE to indicate that a Nonce-AVP has
+      already been sent.  Otherwise it is set to FALSE.
+
+   RTX_COUNTER
+
+      This variable contains the current number of retransmissions of
+      the outstanding PANA message.
+
+   Rx:PANA_MESSAGE_NAME[flag]
+
+      This event variable is set to TRUE when the specified PANA message
+      is received from its peering PANA entity.  The "flag" contains a
+      flag (e.g., Rx:PAR[C]), except for 'R' (Request) flag.
+
+   RTX_TIMEOUT
+
+      This event variable is set to TRUE when the retransmission timer
+      is expired.
+
+   REAUTH
+
+      This event variable is set to TRUE when an initiation of re-
+      authentication phase is triggered.  This event variable can only
+      be set while in the OPEN state.
+
+   TERMINATE
+
+      This event variable is set to TRUE when initiation of PANA session
+      termination is triggered.  This event variable can only be set
+      while in the OPEN state.
+
+   PANA_PING
+
+      This event variable is set to TRUE when initiation of liveness
+      test based on PANA-Notification exchange is triggered.  This event
+      variable can only be set while in the OPEN state.
+
+   SESS_TIMEOUT
+
+      This event is variable is set to TRUE when the session timer has
+      expired.
+
+   LIFETIME_SESS_TIMEOUT
+
+      Configurable value used by the PaC and PAA to close or disconnect
+      an established session in the access phase.  This variable
+
+      indicates the expiration of the session and is set to the value of
+      Session-Lifetime AVP if present in the last PANA-Auth-Request
+      message in the case of the PaC.  Otherwise, it is assumed that the
+      value is infinite and therefore has no expiration.  Expiration of
+      LIFETIME_SESS_TIMEOUT will cause the event variable SESS_TIMEOUT
+      to be set.
+
+   ANY
+
+      This event variable is set to TRUE when any event occurs.
+
+   $$COMMON-VARS ------------------------------------END-------------------------------------
+
+   $$CONFIG_VARS ----------------------------------------------------------------------------
+6.3.  Configurable Values
+
+   RTX_MAX_NUM
+
+      Configurable maximum for how many retransmissions should be
+      attempted before aborting.
+   $$CONFIG_VARS ---------------------------------------END----------------------------------
+
+   $$PAC_STATE_MACHINE ----------------------------------------------------------------------
+7.  PaC State Machine
+7.1.  Interface between PaC and EAP Peer
+7.1.1.  Delivering EAP Messages from PaC to EAP Peer
+7.1.2.  Delivering EAP Messages from EAP Peer to PaC
+7.1.3.  EAP Restart Notification from PaC to EAP Peer
+7.1.4.  EAP Authentication Result Notification from EAP Peer to PaC
+7.1.5.  Alternate Failure Notification from PaC to EAP Peer
+
+   $$PAC-CONFIG_VARS ----------------------------------------------------------------------------
+7.2.  Configurable Values
+
+   FAILED_SESS_TIMEOUT
+
+      Configurable value that allows the PaC to determine whether a PaC
+      authentication and authorization phase has stalled without an
+      explicit EAP success or failure notification.
+   $$PAC-CONFIG_VARS --------------------------------------------------END-----------------------
+
+   $$PAC-VARS -----------------------------------------------------------------------------------
+7.3.  Variables
+
+   AUTH_USER
+
+      This event variable is set to TRUE when initiation of EAP-based
+      (re-)authentication is triggered by the application.
+
+   EAP_SUCCESS
+
+      This event variable is set to TRUE when the EAP peer determines
+      that EAP conversation completes with success.
+
+   EAP_FAILURE
+
+      This event variable is set to TRUE when the EAP peer determines
+      that EAP conversation completes with failure.
+
+   EAP_RESPONSE
+
+      This event variable is set to TRUE when the EAP peer delivers an
+      EAP message to the PaC.  This event accompanies an EAP message
+      received from the EAP peer.
+
+   EAP_RESP_TIMEOUT
+
+      This event variable is set to TRUE when the PaC that has passed an
+      EAP message to the EAP-layer does not receive a subsequent EAP
+      message from the the EAP-layer in a given period.  This provides a
+      time limit for certain EAP methods where user interaction maybe
+      required.
+
+   EAP_DISCARD
+
+      This event variable is set to TRUE when the EAP peer indicates
+      that it has silently discarded the last received EAP-Request.
+      This event does not accompany any EAP message.  In the case where
+      the EAP peer follows the EAP peer state machine defined in
+      [RFC4137], this event variable refers to eapNoResp.
+
+   $$PAC-VARS ------------------------------------------END--------------------------------------
+
+   $$PAC-PROCS -----------------------------------------------------------------------------------
+7.4.  Procedures
+
+   boolean eap_piggyback()
+
+      This procedures returns TRUE to indicate whether the next EAP
+      response will be carried in the pending PAN message for
+      optimization.
+
+   void alt_reject()
+
+      This procedure informs the EAP peer of an authentication failure
+      event without accompanying an EAP message.
+
+   void EAP_RespTimerStart()
+
+      A procedure to start a timer to receive an EAP-Response from the
+      EAP peer.
+
+   void EAP_RespTimerStop()
+
+      A procedure to stop a timer to receive an EAP-Response from the
+      EAP peer.
+
+   $$PAC-PROCS ------------------------------END-------------------------------------------------
+
+7.5.  PaC State Transition Table
+
+   $$PAC-SM ----------------------------------------------------END -----------------------------
+
+
+   $$PAA-SM ====================================================================================-
+
+8.  PAA State Machine
+8.1.  Interface between PAA and EAP Authenticator
+8.1.1.  EAP Restart Notification from PAA to EAP Authenticator
+8.1.2.  Delivering EAP Responses from PAA to EAP Authenticator
+8.1.3.  Delivering EAP Messages from EAP Authenticator to PAA
+8.1.4.  EAP Authentication Result Notification from EAP Authenticator to
+
+   $$PAA-VARS  ----------------------------------------------------------------------------------
+8.2.  Variables
+
+   OPTIMIZED_INIT
+
+      This variable indicates whether the PAA is able to piggyback an
+      EAP-Request in the initial PANA-Auth-Request.  Otherwise it is set
+      to FALSE.
+
+   PAC_FOUND
+
+      This variable is set to TRUE as a result of a PAA initiated
+      handshake.
+
+   REAUTH_TIMEOUT
+
+      This event variable is set to TRUE to indicate that the PAA
+      initiates a re-authentication with the PaC.  The re-authentication
+      timeout should be set to a value less than the session timeout
+      carried in the Session-Lifetime AVP if present.
+
+   EAP_SUCCESS
+
+      This event variable is set to TRUE when EAP conversation completes
+      with success.  This event accompanies an EAP- Success message
+      passed from the EAP authenticator.
+
+   EAP_FAILURE
+
+      This event variable is set to TRUE when EAP conversation completes
+      with failure.  This event accompanies an EAP- Failure message
+      passed from the EAP authenticator.
+
+   EAP_REQUEST
+
+      This event variable is set to TRUE when the EAP authenticator
+      delivers an EAP Request to the PAA.  This event accompanies an
+      EAP-Request message received from the EAP authenticator.
+
+   EAP_TIMEOUT
+
+      This event variable is set to TRUE when EAP conversation times out
+      without generating an EAP-Success or an EAP-Failure message.  This
+      event does not accompany any EAP message.
+
+   EAP_DISCARD
+
+      This event variable is set to TRUE when EAP authenticator
+      indicates that it has silently discarded the last received EAP-
+      Response message.  This event does not accompany any EAP message.
+      In the case where the EAP authenticator follows the EAP
+      authenticator state machines defined in [RFC4137], this event
+      variable refers to eapNoReq.
+
+   $$PAA-VARS  -------------------------------------END------------------------------------------
+
+   $$PAA-PROCS ----------------------------------------------------------------------------------
+8.3.  Procedures
+
+   boolean new_key_available()
+
+      A procedure to check whether the PANA session has a new
+      PANA_AUTH_KEY.  If the state machine already have a PANA_AUTH_KEY,
+      it returns FALSE.  If the state machine does not have a
+      PANA_AUTH_KEY, it tries to retrieve an MSK from the EAP entity.
+      If an MSK has been retrieved, it computes a PANA_AUTH_KEY from the
+      MSK and returns TRUE.  Otherwise, it returns FALSE.
+   $$PAA-PROCS ------------------------------------END-------------------------------------------
+
+8.4.  PAA State Transition Table
+   $$PAA-SM ----------------------------------------END---------------------------------------
+
+
+

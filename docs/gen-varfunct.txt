@@ -1,0 +1,106 @@
+   $$COMMON_PROCS ---------------------------------------------------------------------------    	
+6.1.  Common Procedures
+   void None()
+   void Disconnect()
+   boolean Authorize()
+   void Tx:PANA_MESSAGE_NAME[flag](AVPs)
+   void TxEAP()
+   void RtxTimerStart()
+   void RtxTimerStop()
+   void SessionTimerReStart(TIMEOUT)
+   void SessionTimerStop()
+   void Retransmit()
+   void EAP_Restart()
+   void PANA_MESSAGE_NAME.insert_avp("AVP_NAME1", "AVP_NAME2",...)
+   boolean PANA_MESSAGE_NAME.exist_avp("AVP_NAME")
+   boolean generate_pana_sa()
+   boolean key_available()
+   $$COMMON-PROCS --------------------------END----------------------------------------------
+   $$COMMON-VARS ----------------------------------------------------------------------------
+6.2.  Common Variables
+
+   RTX_COUNTER
+   RTX_TIMEOUT
+   SESS_TIMEOUT
+   LIFETIME_SESS_TIMEOUT
+
+   PAR.RESULT_CODE
+
+   NONCE_SENT
+
+   Rx:PANA_MESSAGE_NAME[flag]
+
+   REAUTH
+   TERMINATE
+   PANA_PING
+   ANY
+   $$COMMON-VARS ------------------------------------END-------------------------------------
+
+   $$CONFIG_VARS ----------------------------------------------------------------------------
+6.3.  Configurable Values
+   RTX_MAX_NUM
+   $$CONFIG_VARS ---------------------------------------END----------------------------------
+
+
+   $$PAC_STATE_MACHINE ----------------------------------------------------------------------
+7.  PaC State Machine
+7.1.  Interface between PaC and EAP Peer
+7.1.1.  Delivering EAP Messages from PaC to EAP Peer
+7.1.2.  Delivering EAP Messages from EAP Peer to PaC
+7.1.3.  EAP Restart Notification from PaC to EAP Peer
+7.1.4.  EAP Authentication Result Notification from EAP Peer to PaC
+7.1.5.  Alternate Failure Notification from PaC to EAP Peer
+   $$PAC-CONFIG_VARS ----------------------------------------------------------------------------
+7.2.  Configurable Values
+   FAILED_SESS_TIMEOUT
+   $$PAC-CONFIG_VARS --------------------------------------------------END-----------------------
+
+   $$PAC-VARS -----------------------------------------------------------------------------------
+7.3.  Variables
+   AUTH_USER
+   EAP_SUCCESS
+   EAP_FAILURE
+   EAP_RESPONSE
+   EAP_RESP_TIMEOUT
+   EAP_DISCARD
+   $$PAC-VARS ------------------------------------------END--------------------------------------
+   
+   $$PAC-PROCS -----------------------------------------------------------------------------------
+7.4.  Procedures
+   boolean eap_piggyback()
+   void alt_reject()
+   void EAP_RespTimerStart()
+   void EAP_RespTimerStop()
+   $$PAC-PROCS ------------------------------END-------------------------------------------------
+   
+7.5.  PaC State Transition Table
+   $$PAC-SM ----------------------------------------------------END -----------------------------
+   
+   
+   $$PAA-SM ====================================================================================-
+8.  PAA State Machine
+8.1.  Interface between PAA and EAP Authenticator
+8.1.1.  EAP Restart Notification from PAA to EAP Authenticator
+8.1.2.  Delivering EAP Responses from PAA to EAP Authenticator
+8.1.3.  Delivering EAP Messages from EAP Authenticator to PAA
+8.1.4.  EAP Authentication Result Notification from EAP Authenticator to
+
+   $$PAA-VARS  ----------------------------------------------------------------------------------
+8.2.  Variables
+   EAP_SUCCESS
+   EAP_FAILURE
+   EAP_REQUEST
+   EAP_TIMEOUT
+   EAP_DISCARD
+
+   REAUTH_TIMEOUT
+   OPTIMIZED_INIT
+   PAC_FOUND
+   $$PAA-VARS  -------------------------------------END------------------------------------------
+   
+   $$PAA-PROCS ----------------------------------------------------------------------------------
+8.3.  Procedures
+   boolean new_key_available()
+   $$PAA-PROCS ------------------------------------END-------------------------------------------
+8.4.  PAA State Transition Table
+   $$PAA-SM ----------------------------------------END---------------------------------------

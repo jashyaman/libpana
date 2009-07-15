@@ -1,0 +1,27 @@
+   $$COMMON-STATES -------------------------------------------------------
+   State: ANY
+   State: ANY except INITIAL
+   State: ANY except WAIT_PNA_PING
+   State: CLOSED
+   $$COMMON-STATES -----------------------END----------------------------
+   $$PAC-STATES ------------------------------------------------------
+   State: INITIAL (Initial State)
+   State: WAIT_PAA
+   State: WAIT_EAP_MSG
+   State: WAIT_EAP_RESULT
+   State: WAIT_EAP_RESULT_CLOSE
+   State: OPEN
+   State: WAIT_PNA_REAUTH
+   State: WAIT_PNA_PING
+   State: SESS_TERM
+   $$PAC-STATES -------------------------END--------------------------
+   $$PAA-STATES -----------------------------------------------------
+   State: INITIAL (Initial State)
+   State: WAIT_EAP_MSG
+   State: WAIT_SUCC_PAN
+   State: WAIT_FAIL_PAN
+   State: OPEN
+   State: WAIT_PNA_PING
+   State: WAIT_PAN_OR_PAR
+   State: SESS_TERM
+  $$PAA-STATES ------------------END----------------------------------

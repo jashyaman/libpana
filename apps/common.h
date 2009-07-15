@@ -33,6 +33,12 @@
 #define DEBUG(cmd) printf("#DEBUG# - %s [%d]: %s\n", __FILE__, __LINE__, #cmd); \
                    cmd
 
+#define os_free(p) \
+    do{if((p) != NULL) {\
+        free((p));\
+        (p) = NULL;\
+        }} while(0)
+
 ip_port_t * str_to_ip_port(const char * const in_str);
 
 #endif /* COMMON_H_ */

@@ -19,6 +19,14 @@
 #include "eap_common/chap.h"
 
 
+#define CHALLENGE_LEN 16
+
+struct eap_md5_data {
+        u8 challenge[CHALLENGE_LEN];
+        enum { CONTINUE, SUCCESS, FAILURE } state;
+};
+
+
 void * eap_md5_get_peer_config(eap_peer_config_t * cfg, char* passfile) {
     FILE *f;
     char *buf, *px;

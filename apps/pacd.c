@@ -56,7 +56,7 @@ static int process_args(char * argv[], int argc) {
                 return ERR_BADARGS;
             }
             global_cfg.paa = *tmp_ipporv;
-            free(tmp_ipporv);
+            os_free(tmp_ipporv);
         }
         else if ((strcmp(argv[ctoken++], "-c") == 0) && !(flags & CMD_FLAG_C)) {
             pacd_config_file = argv[ctoken++];
@@ -83,11 +83,11 @@ int process_config_files() {
 
     tmp_iport = str_to_ip_port("127.0.0.1:5000");
     global_cfg.pac = *tmp_iport;
-    free(tmp_iport);
+    os_free(tmp_iport);
 
     tmp_iport = str_to_ip_port("127.0.0.1:7000");
     global_cfg.paa = *tmp_iport;
-    free(tmp_iport);
+    os_free(tmp_iport);
     
     global_cfg.eap_cfg = malloc(sizeof(pana_eap_peer_config_t));
     global_cfg.eap_cfg->identity = "alex.antone@gmail.com";
@@ -104,7 +104,7 @@ int process_config_files() {
 
 void cleanup() {
     if (global_cfg.eap_cfg) {
-        free(global_cfg.eap_cfg);
+        os_free(global_cfg.eap_cfg);
     }
 }
 

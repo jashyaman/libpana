@@ -396,7 +396,11 @@ int os_snprintf(char *str, size_t size, const char *format, ...);
 #define os_realloc(p, s) realloc((p), (s))
 #endif
 #ifndef os_free
-#define os_free(p) free((p))
+#define os_free(p) \
+    do{if((p) != NULL) {\
+        free((p));\
+        (p) = NULL;\
+        }} while(0)
 #endif
 
 #ifndef os_memcpy

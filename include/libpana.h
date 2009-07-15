@@ -47,8 +47,9 @@ typedef struct pac_config_s {
 /* PAA global config */
 typedef struct paa_config_s {
     /* auth config parameters */
-    ip_port_t paa;
-    ip_port_t ep;                               // Enforcement point
+    ip_port_t paa_pana;     // local address for pana comm.
+    ip_port_t paa_ep;       // local address for ep comm.
+    ip_port_t ep;           // Enforcement point address
     pana_eap_peer_config_t * eap_cfg;
     
     /* transmission params */

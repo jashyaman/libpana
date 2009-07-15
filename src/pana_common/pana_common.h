@@ -158,7 +158,11 @@ typedef struct pana_sesion_s {
     bytebuff_t * pkt_cache;
     uint32_t session_lifetime;
     pana_sa_t * sa;
+
     void * ctx;         // Other specifi options for PaC and PAA
+
+    
+    struct pana_sesion_s * next;  // Only used by PAA
 } pana_session_t;
 
 typedef enum pana_phase {

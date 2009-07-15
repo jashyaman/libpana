@@ -1,0 +1,533 @@
+   $$COMMON-STATES -------------------------------------------------------
+   ----------
+   State: ANY
+   ----------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - - (Re-transmissions)- - - - - - - - - -
+   RTX_TIMEOUT &&           Retransmit();              (no change)
+   RTX_COUNTER<
+   RTX_MAX_NUM
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - (Reach maximum number of transmissions)- - - - - -
+   (RTX_TIMEOUT &&          Disconnect();              CLOSED
+    RTX_COUNTER>=
+    RTX_MAX_NUM) ||
+   SESS_TIMEOUT
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   -------------------------
+   State: ANY except INITIAL
+   -------------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - (liveness test initiated by peer)- - - - - -
+   Rx:PNR[P]                Tx:PNA[P]();               (no change)
+
+
+   -------------------------------
+   State: ANY except WAIT_PNA_PING
+   -------------------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - (liveness test response) - - - - - - - -
+   Rx:PNA[P]                None();                    (no change)
+
+   The following transitions can occur on any exit condition within the
+   specified state.
+
+   -------------
+   State: CLOSED
+   -------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - -(Catch all event on closed state) - - - - - - - -
+   ANY                      None();                    CLOSED
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   $$COMMON-STATES -----------------------END----------------------------
+
+
+   $$PAC-STATES ------------------------------------------------------
+
+   ------------------------------
+   State: INITIAL (Initial State)
+   ------------------------------
+
+   Initialization Action:
+
+     NONCE_SENT=Unset;
+     RTX_COUNTER=0;
+     RtxTimerStop();
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+-----------
+   - - - - - - - - - - (PaC-initiated Handshake) - - - - - - - - -
+   AUTH_USER                Tx:PCI[]();                INITIAL
+                            RtxTimerStart();
+                            SessionTimerReStart
+                              (FAILED_SESS_TIMEOUT);
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   - - - - - - -(PAA-initiated Handshake, not optimized) - - - - -
+   Rx:PAR[S] &&             EAP_Restart();             WAIT_PAA
+   !PAR.exist_avp           SessionTimerReStart
+   ("EAP-Payload")              (FAILED_SESS_TIMEOUT);
+                            if (generate_pana_sa())
+                                Tx:PAN[S]("PRF-Algorithm",
+                                   "Integrity-Algorithm");
+                            else
+                                Tx:PAN[S]();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   - - - - - - - -(PAA-initiated Handshake, optimized) - - - - - -
+   Rx:PAR[S] &&             EAP_Restart();             INITIAL
+   PAR.exist_avp            TxEAP();
+   ("EAP-Payload") &&       SessionTimerReStart
+   eap_piggyback()            (FAILED_SESS_TIMEOUT);
+
+   Rx:PAR[S] &&             EAP_Restart();             WAIT_EAP_MSG
+   PAR.exist_avp            TxEAP();
+   ("EAP-Payload") &&       SessionTimerReStart
+   !eap_piggyback()           (FAILED_SESS_TIMEOUT);
+                            if (generate_pana_sa())
+                                Tx:PAN[S]("PRF-Algorithm",
+                                  "Integrity-Algorithm");
+                            else
+                                Tx:PAN[S]();
+
+   EAP_RESPONSE             if (generate_pana_sa())    WAIT_PAA
+                                Tx:PAN[S]("EAP-Payload",
+                                  "PRF-Algorithm",
+                                  "Integrity-Algorithm");
+                            else
+                                Tx:PAN[S]("EAP-Payload");
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   ---------------
+   State: WAIT_PAA
+   ---------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - - - -(PAR-PAN exchange) - - - - - - - -
+   Rx:PAR[] &&              RtxTimerStop();            WAIT_EAP_MSG
+   !eap_piggyback()         TxEAP();
+                            EAP_RespTimerStart();
+                            if (NONCE_SENT==Unset) {
+                              NONCE_SENT=Set;
+                              Tx:PAN[]("Nonce");
+                            }
+                            else
+                              Tx:PAN[]();
+
+   Rx:PAR[] &&              RtxTimerStop();            WAIT_EAP_MSG
+   eap_piggyback()          TxEAP();
+                            EAP_RespTimerStart();
+
+   Rx:PAN[]                 RtxTimerStop();            WAIT_PAA
+
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - - - - - - - -(PANA result) - - - - - - - - - -
+   Rx:PAR[C] &&             TxEAP();                   WAIT_EAP_RESULT
+   PAR.RESULT_CODE==
+     PANA_SUCCESS
+
+   Rx:PAR[C] &&             if (PAR.exist_avp          WAIT_EAP_RESULT_
+   PAR.RESULT_CODE!=          ("EAP-Payload"))         CLOSE
+     PANA_SUCCESS             TxEAP();
+                            else
+                               alt_reject();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   -------------------
+   State: WAIT_EAP_MSG
+   -------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - (Return PAN/PAR from EAP) - - - - - - - - -
+   EAP_RESPONSE &&          EAP_RespTimerStop()        WAIT_PAA
+   eap_piggyback()          if (NONCE_SENT==Unset) {
+                              Tx:PAN[]("EAP-Payload",
+                                       "Nonce");
+                              NONCE_SENT=Set;
+                            }
+                            else
+                              Tx:PAN[]("EAP-Payload");
+
+   EAP_RESPONSE &&          EAP_RespTimerStop()        WAIT_PAA
+   !eap_piggyback()         Tx:PAR[]("EAP-Payload");
+                            RtxTimerStart();
+
+   EAP_RESP_TIMEOUT &&      Tx:PAN[]();                WAIT_PAA
+   eap_piggyback()
+
+   EAP_DISCARD &&           Tx:PAN[]();                CLOSED
+   eap_piggyback()          SessionTimerStop();
+                            Disconnect();
+
+   EAP_FAILURE ||           SessionTimerStop();        CLOSED
+   (EAP_DISCARD &&          Disconnect();
+   !eap_piggyback())
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   ----------------------
+   State: WAIT_EAP_RESULT
+   ----------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - - (EAP Result) - - - - - - - - - - - - -
+   EAP_SUCCESS             if (PAR.exist_avp           OPEN
+                              ("Key-Id"))
+                             Tx:PAN[C]("Key-Id");
+                           else
+                             Tx:PAN[C]();
+                           Authorize();
+                           SessionTimerReStart
+                             (LIFETIME_SESS_TIMEOUT);
+
+   EAP_FAILURE             Tx:PAN[C]();                CLOSED
+                           SessionTimerStop();
+                           Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   ----------------------------
+   State: WAIT_EAP_RESULT_CLOSE
+   ----------------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - - (EAP Result) - - - - - - - - - - - - -
+   EAP_SUCCESS ||          if (EAP_SUCCESS &&         CLOSED
+   EAP_FAILURE               PAR.exist_avp("Key-Id"))
+                             Tx:PAN[C]("Key-Id");
+                           else
+                             Tx:PAN[C]();
+                           SessionTimerStop();
+                           Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   -----------
+   State: OPEN
+   -----------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - (liveness test initiated by PaC)- - - - - -
+   PANA_PING                Tx:PNR[P]();               WAIT_PNA_PING
+                            RtxTimerStart();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - - (re-authentication initiated by PaC)- - - - - -
+   REAUTH                   NONCE_SENT=Unset;          WAIT_PNA_REAUTH
+                            Tx:PNR[A]();
+                            RtxTimerStart();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - - (re-authentication initiated by PAA)- - - - - -
+   Rx:PAR[]                 EAP_RespTimerStart();      WAIT_EAP_MSG
+                            TxEAP();
+                            if (!eap_piggyback())
+                              Tx:PAN[]("Nonce");
+                            else
+                              NONCE_SENT=Unset;
+                            SessionTimerReStart
+                              (FAILED_SESS_TIMEOUT);
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - -(Session termination initiated by PAA) - - - - - -
+   Rx:PTR[]                 Tx:PTA[]();                CLOSED
+                            SessionTimerStop();
+                            Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - -(Session termination initiated by PaC) - - - - - -
+   TERMINATE                Tx:PTR[]();                SESS_TERM
+                            RtxTimerStart();
+                            SessionTimerStop();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   ----------------------
+   State: WAIT_PNA_REAUTH
+   ----------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - -(re-authentication initiated by PaC) - - - - -
+   Rx:PNA[A]                RtxTimerStop();            WAIT_PAA
+                            SessionTimerReStart
+                              (FAILED_SESS_TIMEOUT);
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - -(Session termination initiated by PAA) - - - - - -
+   Rx:PTR[]                 RtxTimerStop();            CLOSED
+                            Tx:PTA[]();
+                            SessionTimerStop();
+                            Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   --------------------
+   State: WAIT_PNA_PING
+   --------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - -(liveness test initiated by PaC) - - - - - - -
+   Rx:PNA[P]                RtxTimerStop();            OPEN
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - - (re-authentication initiated by PAA)- - - - -
+   Rx:PAR[]                 RtxTimerStop();            WAIT_EAP_MSG
+                            EAP_RespTimerStart();
+                            TxEAP();
+                            if (!eap_piggyback())
+                              Tx:PAN[]("Nonce");
+                            else
+                              NONCE_SENT=Unset;
+                            SessionTimerReStart
+                              (FAILED_SESS_TIMEOUT);
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - -(Session termination initiated by PAA) - - - - - -
+   Rx:PTR[]                 RtxTimerStop();            CLOSED
+                            Tx:PTA[]();
+                            SessionTimerStop();
+                            Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   ----------------
+   State: SESS_TERM
+   ----------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - -(Session termination initiated by PaC) - - - - -
+   Rx:PTA[]                 Disconnect();              CLOSED
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   $$PAC-STATES -------------------------END--------------------------
+
+   $$PAA-STATES =======================================================================
+   ------------------------------
+   State: INITIAL (Initial State)
+   ------------------------------
+
+   Initialization Action:
+
+     OPTIMIZED_INIT=Set|Unset;
+     NONCE_SENT=Unset;
+     RTX_COUNTER=0;
+     RtxTimerStop();
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+    - - - - - - - - (PCI and PAA initiated PANA) - - - - - - - - -
+   (Rx:PCI[] ||             if (OPTIMIZED_INIT ==      INITIAL
+    PAC_FOUND)                  Set) {
+                              EAP_Restart();
+                              SessionTimerReStart
+                               (FAILED_SESS_TIMEOUT);
+                            }
+                            else {
+                              if (generate_pana_sa())
+                                   Tx:PAR[S]("PRF-Algorithm",
+                                      "Integrity-Algorithm");
+                              else
+                                   Tx:PAR[S]();
+                            }
+
+   EAP_REQUEST              if (generate_pana_sa())    INITIAL
+                                Tx:PAR[S]("EAP-Payload",
+                                   "PRF-Algorithm",
+                                   "Integrity-Algorithm");
+                            else
+                                Tx:PAR[S]("EAP-Payload");
+                            RtxTimerStart();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   - - - - - - - - - - - - - - (PAN Handling)  - - - - - - - - - -
+   Rx:PAN[S] &&             if (PAN.exist_avp          WAIT_EAP_MSG
+   ((OPTIMIZED_INIT ==         ("EAP-Payload"))
+     Unset) ||                TxEAP();
+   PAN.exist_avp            else {
+     ("EAP-Payload"))         EAP_Restart();
+                              SessionTimerReStart
+                               (FAILED_SESS_TIMEOUT);
+                            }
+
+   Rx:PAN[S] &&             None();                    WAIT_PAN_OR_PAR
+   (OPTIMIZED_INIT ==
+     Set) &&
+   ! PAN.exist_avp
+    ("EAP-Payload")
+
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   -------------------
+   State: WAIT_EAP_MSG
+   -------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - -(Receiving EAP-Request)- - - - - - - - -
+   EAP_REQUEST              if (NONCE_SENT==Unset) {   WAIT_PAN_OR_PAR
+                              Tx:PAR[]("Nonce",
+                                       "EAP-Payload");
+                              NONCE_SENT=Set;
+                            }
+                            else
+                              Tx:PAR[]("EAP-Payload");
+                            RtxTimerStart();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - - - -(Receiving EAP-Success/Failure) - - - - -
+   EAP_FAILURE              PAR.RESULT_CODE =          WAIT_FAIL_PAN
+                              PANA_AUTHENTICATION_
+                                  REJECTED;
+                            Tx:PAR[C]("EAP-Payload");
+                            RtxTimerStart();
+                            SessionTimerStop();
+
+   EAP_SUCCESS &&           PAR.RESULT_CODE =          WAIT_SUCC_PAN
+   Authorize()                PANA_SUCCESS;
+                            if (new_key_available())
+                              Tx:PAR[C]("EAP-Payload",
+                                   "Key-Id");
+                            else
+                              Tx:PAR[C]("EAP-Payload");
+                            RtxTimerStart();
+
+   EAP_SUCCESS &&           PAR.RESULT_CODE =          WAIT_FAIL_PAN
+   !Authorize()               PANA_AUTHORIZATION_
+                                REJECTED;
+                            if (new_key_available())
+                              Tx:PAR[C]("EAP-Payload",
+                                   "Key-Id");
+                            else
+                              Tx:PAR[C]("EAP-Payload");
+                            RtxTimerStart();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    - - - - - (Receiving EAP-Timeout or invalid message) - - - - -
+   EAP_TIMEOUT ||           SessionTimerStop();        CLOSED
+   EAP_DISCARD              Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   --------------------
+   State: WAIT_SUCC_PAN
+   --------------------
+
+   Event/Condition          Action                     Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - - (PAN Processing)- - - - - - - - - - -
+   Rx:PAN[C]                RtxTimerStop();            OPEN
+                            SessionTimerReStart
+                              (LIFETIME_SESS_TIMEOUT);
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   --------------------
+   State: WAIT_FAIL_PAN
+   --------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - - - (PAN Processing)- - - - - - - - - -
+   Rx:PAN[C]                RtxTimerStop();            CLOSED
+                            Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   -----------
+   State: OPEN
+   -----------
+
+   Event/Condition          Action                     Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - (re-authentication initiated by PaC) - - - - - -
+   Rx:PNR[A]                NONCE_SENT=Unset;          WAIT_EAP_MSG
+                            EAP_Restart();
+                            Tx:PNA[A]();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - (re-authentication initiated by PAA)- - - - - -
+   REAUTH ||                NONCE_SENT=Unset;          WAIT_EAP_MSG
+   REAUTH_TIMEOUT           EAP_Restart();
+
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - (liveness test based on PNR-PNA exchange initiated by PAA)-
+   PANA_PING                Tx:PNR[P]();               WAIT_PNA_PING
+                            RtxTimerStart();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - (Session termination initated from PAA) - - - -
+   TERMINATE                Tx:PTR[]();                SESS_TERM
+                            SessionTimerStop();
+                            RtxTimerStart();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - (Session termination initated from PaC) - - - -
+   Rx:PTR[]                 Tx:PTA[]();                CLOSED
+                            SessionTimerStop();
+                            Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   --------------------
+   State: WAIT_PNA_PING
+   --------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - - -(PNA processing) - - - - - - - - - -
+   Rx:PNA[P]                RtxTimerStop();            OPEN
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - (re-authentication initiated by PaC) - - - - - -
+   Rx:PNR[A]                RtxTimerStop();            WAIT_EAP_MSG
+                            NONCE_SENT=Unset;
+                            EAP_Restart();
+                            Tx:PNA[A]();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - (Session termination initated from PaC) - - - -
+   Rx:PTR[]                 RtxTimerStop();            CLOSED
+                            Tx:PTA[]();
+                            SessionTimerStop();
+                            Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   ----------------------
+   State: WAIT_PAN_OR_PAR
+   ----------------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - - (PAR Processing)- - - - - - - - - - -
+   Rx:PAR[]                 TxEAP();                   WAIT_EAP_MSG
+                            RtxTimerStop();
+                            Tx:PAN[]();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - (Pass EAP Response to the EAP authenticator)- - - -
+   Rx:PAN[] &&              TxEAP();                   WAIT_EAP_MSG
+   PAN.exist_avp            RtxTimerStop();
+   ("EAP-Payload")
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - - - (PAN without an EAP response) - - - - - - -
+   Rx:PAN[] &&              RtxTimerStop();            WAIT_PAN_OR_PAR
+   !PAN.exist_avp
+   ("EAP-Payload")
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - - - - - -(EAP retransmission) - - - - - - - - - -
+   EAP_REQUEST              RtxTimerStop();            WAIT_PAN_OR_PAR
+                            Tx:PAR[]("EAP-Payload");
+                            RtxTimerStart();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   - - - - - - - (EAP authentication timeout or failure)- - - - -
+   EAP_FAILURE ||           RtxTimerStop();            CLOSED
+   EAP_TIMEOUT ||           SessionTimerStop();
+   EAP_DISCARD              Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+   ----------------
+   State: SESS_TERM
+   ----------------
+
+   Exit Condition           Exit Action                Exit State
+   ------------------------+--------------------------+------------
+   - - - - - - - - - - - - - -(PTA processing) - - - - - - - - - -
+   Rx:PTA[]                 RtxTimerStop();            CLOSED
+                            Disconnect();
+   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  $$PAA-STATES ------------------END----------------------------------
+ 
+

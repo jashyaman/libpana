@@ -49,9 +49,9 @@ ip_port_t * str_to_ip_port(const char * const in_str) {
         }
     }
     
-    free(tmpstr);
+    os_free(tmpstr);
     if (res < 0) {
-        free(out);
+        os_free(out);
         return NULL;
     }
     
