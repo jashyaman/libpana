@@ -20,6 +20,6 @@ bytebuff_t * bytebuff_alloc(size_t size);
 bytebuff_t * bytebuff_dup(bytebuff_t * src);
 bytebuff_t * bytebuff_from_bytes(const uint8_t * src, size_t size);
 
-#define free_bytebuff(b) free((b))
+#define free_bytebuff(b) os_free((b))
 
 #endif /* BYTEBUFF_H_ */

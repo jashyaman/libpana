@@ -1,5 +1,7 @@
 CC = gcc
 RM = rm -rf
+DEBUG := yes
+
 
 COMMONINCLUDES = -I./src
 
@@ -34,8 +36,13 @@ PAC_DEPS = $(patsubst %.c,%.d,$(wildcard $(PAC_SRC)))
 PAA_OBJ = $(patsubst %.c,%.o,$(wildcard $(PAA_SRC)))
 PAA_DEPS = $(patsubst %.c,%.d,$(wildcard $(PAA_SRC)))
 
+ifeq ($(DEBUG),yes)
 %.o: %.c %.h
 	$(CC) $(COMMONINCLUDES) -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o"$@" "$<"
+else
+%.o: %.c %.h
+	$(CC) $(COMMONINCLUDES) -c -o"$@" "$<"
+endif
 
 
 all: pacd nasd

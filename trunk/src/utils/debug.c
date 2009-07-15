@@ -23,20 +23,20 @@ void dbgi_hexdump(const char * const level, const char * const title,
 }
 
 
-
+#define DBG_LINEBUFF_LEN 100
 void dbgi_asciihexdump(const char * const level, const char * const title,
                       const unsigned char * const buff, unsigned int len)
 {
-    char * slinebuff = malloc(100);
+    char linebuff[DBG_LINEBUFF_LEN];
     char * lx;
     unsigned char * px;
     int ix,jx,cx;
-    printf("[%s] - %s\n", level, title);
+    printf("[%s] - %s -%d-\n", level, title, len);
     
-    for (ix=0 ; ix<len; ix += 0xf ) {
-        bzero(slinebuff, sizeof(slinebuff));
+    for (ix=0 ; ix<len; ix += 0x10 ) {
+        bzero(linebuff, sizeof(linebuff));
         px = buff + ix;
-        lx = slinebuff;
+        lx = linebuff;
         cx = (len - ix > 0xf) ? 0x10 : len - ix; 
         for (jx=0; jx < cx; jx++ , lx+=3) {
             sprintf(lx, "%02X ", px[jx]);
@@ -54,8 +54,6 @@ void dbgi_asciihexdump(const char * const level, const char * const title,
         for (jx; jx < 0x10; jx++, lx+=2) {
             sprintf(lx, "..");
         }
-        printf("%.80s\n",slinebuff);
+        printf("%s\n",linebuff);
     }
-    
-    free(slinebuff);
 }

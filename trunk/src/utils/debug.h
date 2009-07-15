@@ -23,9 +23,9 @@ void dbgi_asciihexdump(const char * const level, const char * const title,
 #define dbg_asciihexdump(level, title, buff, len) dbgi_asciihexdump(#level, title, buff, len)
 
 
-#define DEBUG(cmd) \
+#define DEBUG(cmd) do{\
     printf("#DEBUG: %s [%d]: %s\n", __FILE__, __LINE__, #cmd); \
-    cmd
+    cmd; } while(0)
 
 
 #endif /* DEBUG_H_ */

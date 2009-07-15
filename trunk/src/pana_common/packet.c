@@ -52,9 +52,9 @@ void free_avp (pana_avp_t * avp) {
     }
     
     if (avp->avp_value != NULL) {
-        free(avp->avp_value);
+        os_free(avp->avp_value);
     }
-    free(avp);
+    os_free(avp);
 }
 
 pana_avp_node_t * avp_node_create(const pana_avp_t * node) {
@@ -77,9 +77,9 @@ void avp_list_destroy(pana_avp_node_t *avp_list)
     while (cursor != NULL) {
         tmp_head = cursor->next;
         if (cursor->node.avp_value != NULL) {
-            free(cursor->node.avp_value);
+            os_free(cursor->node.avp_value);
         }
-        free(cursor);
+        os_free(cursor);
         cursor = tmp_head;
     }
 }
@@ -201,7 +201,7 @@ parse_pana_packet (bytebuff_t * buff)
     px += PPL_OFFSET_AVP;
 
     if (out->pp_message_length != buff->used) {
-        free(out);
+        os_free(out);
         return NULL;
     }
 
@@ -216,7 +216,7 @@ parse_pana_packet (bytebuff_t * buff)
         tmp_node = szalloc(pana_avp_node_t);
         if (!tmp_node) {
             avp_list_destroy(tmpavplist);
-            free(out);
+            os_free(out);
             return NULL;
         }
 
@@ -236,7 +236,7 @@ parse_pana_packet (bytebuff_t * buff)
 
         tmp_node->node.avp_value = malloc(tmp_node->node.avp_length);
         if (tmp_node->node.avp_value == NULL) {
-            free(tmp_node);
+            os_free(tmp_node);
             avp_list_destroy(tmpavplist);
             return NULL;
         }
@@ -356,7 +356,7 @@ construct_pana_packet (uint16_t message_type,
 void
 free_pana_packet(pana_packet_t * pkt){
     avp_list_destroy(pkt->pp_avp_list);
-    free(pkt);
+    os_free(pkt);
 }
 
 
