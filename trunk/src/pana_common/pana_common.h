@@ -11,8 +11,9 @@
 #include <sys/types.h>
 #include "utils/util.h"
 #include "utils/bytebuff.h"
+#include "libpana.h"
 
-//#include "eap_common/eap_config.h"
+#define MACADDR_LEN  6
 
 #define FAVP_FLAG_VENDOR 0x8000
 #define FAVP_FLAG_CLEARED 0x0000
@@ -48,7 +49,7 @@ typedef enum pana_avp_codes {
     PAVP_TERM_CAUSE     = 9,
     
     /* Vendor codes for UPB*/
-    PAVP_V_IDENTITY     = 1
+    PAVP_PEER_MACADDR    = 1
 } pana_avp_codes_t;
 
 enum {

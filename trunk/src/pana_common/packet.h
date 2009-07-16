@@ -39,7 +39,9 @@ Boolean exists_avp(pana_packet_t * pktin, pana_avp_codes_t avpcode);
 #define AVP_GET_FIRST 0
 #define AVP_GET_NEXT  1
 
-
+pana_avp_t * get_vend_avp_by_code(pana_avp_list_t src,
+        pana_avp_codes_t code, uint32_t vendid, uint8_t flag);
+        
 pana_avp_t * get_avp_by_code(pana_avp_list_t src, pana_avp_codes_t code, uint8_t flag);
 
 pana_packet_t * parse_pana_packet (bytebuff_t * buff);

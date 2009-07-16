@@ -49,6 +49,9 @@ static inline u32 bytes_to_be32(const uint8_t * buff) {
     return (buff[0] << 24u) | (buff[1] << 16u) | (buff[2] << 8u) | buff[3];
 }
 
+static inline void buff_insert_u8(uint8_t * buff, uint8_t val) {
+    buff[0] = val;
+}
 
 static inline void buff_insert_be16(uint8_t * buff, uint16_t val) {
     buff[0] = (val >> 8) & 0xff;

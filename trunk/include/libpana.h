@@ -34,6 +34,7 @@ typedef struct pac_config_s {
     /* auth config parameters */
     ip_port_t pac;
     ip_port_t paa;
+    uint8_t pac_macaddr[6];
     pana_eap_peer_config_t * eap_cfg;
     
     /* transmission params */
@@ -56,6 +57,7 @@ typedef struct paa_config_s {
     uint16_t rtx_interval;
     uint8_t  rtx_max_count;
     uint16_t failed_sess_timeout;
+    uint16_t session_lifetime;
     
 } paa_config_t;
 
@@ -75,5 +77,7 @@ int pac_main(const pac_config_t * const global_cfg);
  * PAA specific functions
  * -------------------------------------------------------------------------
  */
+
+int paa_main(const paa_config_t * const global_cfg);
 
 #endif /* LIBPANA_H_ */

@@ -179,6 +179,12 @@ Boolean eap_md5_isSuccess(void *priv)
 	return data->state == SUCCESS;
 }
 
+Boolean eap_md5_isFailure(void *priv)
+{
+        struct eap_md5_data *data = priv;
+        return data->state == FAILURE;
+}
+
 /*
 int eap_server_md5_register(void)
 {
