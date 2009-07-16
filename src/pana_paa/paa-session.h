@@ -9,7 +9,8 @@
 #define PAASESSION_H_
 
 #include "pana_common/pana_common.h"
-#include "eap_peer/eap_md5.h"
+#include "eap_server/eap_md5.h"
+#include "ep.h"
 
 
 #define RX(msgtype, msgflags, pktin) \

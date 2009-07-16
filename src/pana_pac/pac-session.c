@@ -381,6 +381,10 @@ static pana_avp_list_t pac_avplist_create(pana_session_t * pacs, pana_avp_codes_
                     ctx->eap_resp_payload->used);
             tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
             break;
+        case PAVP_PEER_MACADDR:
+            tmp_avp = create_avp(PAVP_PEER_MACADDR, FAVP_FLAG_VENDOR, PANA_VENDOR_UPB,
+                    ctx->pacglobal->pac_macaddr,MACADDR_LEN);
+            tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
         }
         
         reqAVP = va_arg(ap, pana_avp_codes_t);
@@ -574,7 +578,7 @@ pac_process(bytebuff_t * datain) {
                 clear_events();
                 /* No pana_sa will be generate */
                 
-                tmpavplist = AVPLIST(PAVP_EAP_PAYLOAD);
+                tmpavplist = AVPLIST(PAVP_EAP_PAYLOAD, PAVP_PEER_MACADDR);
                 TX_PAN_S(respData, tmpavplist);
                 
                 pacs->cstate = PAC_STATE_WAIT_PAA;

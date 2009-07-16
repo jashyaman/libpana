@@ -13,6 +13,7 @@
  */
 static char * pacd_config_file = "/etc/pana/pacd.conf";
 static char * dhcp_lease_file = "/var/lib/dhcp3/dhclient.leases";
+static uint8_t localmac[6] = {0x00, 0x22 , 0x69, 0x7b ,0x83, 0x3c};
 
 static pac_config_t global_cfg;
 
@@ -81,11 +82,11 @@ int process_config_files() {
      */
     ip_port_t * tmp_iport;
 
-    tmp_iport = str_to_ip_port("127.0.0.1:5000");
+    tmp_iport = str_to_ip_port("127.0.0.1:5000");   // locsl port
     global_cfg.pac = *tmp_iport;
     os_free(tmp_iport);
 
-    tmp_iport = str_to_ip_port("127.0.0.1:7000");
+    tmp_iport = str_to_ip_port("127.0.0.1:7000");    // server's address
     global_cfg.paa = *tmp_iport;
     os_free(tmp_iport);
     
@@ -98,6 +99,7 @@ int process_config_files() {
     global_cfg.rtx_interval = 10;
     global_cfg.rtx_max_count = 4;
     global_cfg.failed_sess_timeout = 60;  // 5 min
+    memcpy(global_cfg.pac_macaddr, localmac, 6);
     
     return RES_CFG_FILES_OK;
 }
@@ -108,7 +110,7 @@ void cleanup() {
     }
 }
 
-int main(char * argv[], int argc)
+int main(int argc, char * argv[])
 {
     int exit_code = 0;
     

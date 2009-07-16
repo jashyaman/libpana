@@ -21,7 +21,8 @@
 /* pac context data */
 typedef struct paa_ctx {
     
-    int sockfd;
+    int pana_sockfd;
+    int ep_sockfd;
     
     rtimer_t rtx_timer;
     rtimer_t reauth_timer;
@@ -38,7 +39,10 @@ typedef struct paa_ctx {
     eap_method_ret_t * eap_ret;
     bytebuff_t * eap_resp_payload;  //store the pending EAP response
     rtimer_t eap_resptimer;
+    void * method_data;
     
+    /* EP interface */
+    uint8_t peer_macaddr[6];
     
     /* Events */
     uint32_t event_occured;
@@ -122,6 +126,9 @@ static pana_session_t * pacs_list;
 static uint32_t last_sess_id;
 static paa_config_t * cfg;
 
+#define MAX_RULES 256
+static ep_rule_t * ep_ruleslist[MAX_RULES];
+
 typedef enum {
    PAA_STATE_INITIAL,
    PAA_STATE_WAIT_EAP_MSG,
@@ -165,11 +172,18 @@ static void TxEAP(pana_session_t * pacs, pana_packet_t * pktin) {
     /*
      * TODO:
      */
-//    eap_resp = eap_md5_process(ctx->eap_config, ctx->eap_ret, wtmp);
+    if (eap_md5_check(ctx->method_data, wtmp)) {
+        eap_md5_process(ctx->eap_config, ctx->method_data, wtmp);
+    }
     wpabuf_free(wtmp);
     free_avp(eap_payload);        
     
-    /* Store the pending EAP payload */
+    if (eap_md5_isFailure(ctx->method_data)) {
+        EAP_FAILURE_Set();
+    } 
+    else if(eap_md5_isSuccess(ctx->method_data)) {
+        EAP_SUCCESS_Set();
+    }
   
     
     wpabuf_free(eap_resp);
@@ -195,7 +209,7 @@ static void RtxTimerStop(pana_session_t * pacs) {
 
 
 #define FAILED_SESS_TIMEOUT   (cfg->failed_sess_timeout)
-#define LIFETIME_SESS_TIMEOUT (pacs->session_lifetime)
+#define LIFETIME_SESS_TIMEOUT (cfg->session_lifetime)
 
 static void SessionTimerReStart(pana_session_t * pacs, uint16_t timeout) {
     paa_ctx_t * ctx = pacs->ctx;
@@ -220,7 +234,7 @@ static void Retransmit(pana_session_t * pacs) {
         dbg_asciihexdump(PKT_RTX,"PAcket rtx contents",
                 bytebuff_data(pacs->pkt_cache),
                 pacs->pkt_cache->used);
-        res = send(ctx->sockfd, bytebuff_data(pacs->pkt_cache),
+        res = send(ctx->pana_sockfd, bytebuff_data(pacs->pkt_cache),
                 pacs->pkt_cache->used, 0);
         if (res < 0 || res != pacs->pkt_cache->used) {
             DEBUG("There was a problem when sending the cached pkt");
@@ -238,19 +252,65 @@ static void Retransmit(pana_session_t * pacs) {
     ctx->rtx_timer.deadline = time(NULL) + cfg->rtx_interval;
 }
 
+static int ep_rule_register(pana_session_t * pacs, uint8_t cmd) {
+    paa_ctx_t * ctx = pacs->ctx;
+    bytebuff_t * tmptxbuff = NULL;
+    int ix;
+    for (ix = 0; ix < MAX_RULES; ix++) {
+        if (!ep_ruleslist[ix]) {
+            if (!(ep_ruleslist[ix] = szalloc(ep_rule_t))) {
+                return -1;
+            }
+            ep_ruleslist[ix]->cmd = cmd;
+            memcpy(ep_ruleslist[ix]->mac, ctx->peer_macaddr, MACADDR_LEN);
+            ep_ruleslist[ix]->ip = pacs->pac_ip_port.ip;
+            ep_ruleslist[ix]->ttl = cfg->session_lifetime;
+            
+            ep_ruleslist[ix]->rtx_timer.enabled = TRUE;
+            ep_ruleslist[ix]->rtx_timer.deadline = time(NULL) + cfg->rtx_interval;
+            
+            tmptxbuff = serialize_ep_pkt(ep_ruleslist[ix], ix);
+            send(ctx->ep_sockfd, bytebuff_data(tmptxbuff),
+                    tmptxbuff->used, 0);
+            free_bytebuff(tmptxbuff);
+            
+            return 0;
+        }
+    }
+    
+    return -1;
+}
+
+static void ep_rule_unregister(uint8_t id) {
+    if (!ep_ruleslist[id]) {
+        return;
+    }
+    os_free(ep_ruleslist[id]);
+}
+
 static Boolean Authorize(pana_session_t * pacs){
-    /*
-     * TODO: HERE MUST REGISTER SENDING ACL TO EP
-     */
-       
+
+    if (ep_rule_register(pacs, EP_COMMAND_SET) < 0) {
+        return FALSE;
+    }
     return TRUE;
 }
 
 static void EAP_Restart(pana_session_t * pacs) {
-    /* MD5 has no special requirements to restart */
-    /*
-     * TODO:
-     */
+    paa_ctx_t * ctx = pacs->ctx;
+    struct wpabuf * eap_resq = NULL;
+    
+    eap_md5_reset(ctx->method_data);
+    ctx->method_data = eap_md5_init();
+    
+    eap_resq = eap_md5_buildReq(ctx->method_data, EAP_VENDOR_IETF);
+    if (eap_resq != NULL) {
+        ctx->eap_resp_payload = bytebuff_from_bytes(wpabuf_head_u8(eap_resq),
+                eap_resq->used);
+        EAP_REQUEST_Set();
+    }
+    wpabuf_free(eap_resq);
+
 }
 
 #define PAVP_RESULT_SUCCESS                 (PAVP_RESULT_CODE | (0x10000 << PANA_SUCCESS) )
@@ -473,7 +533,7 @@ uint32_t paa_get_available_sess_id() {
     uint32_t out = last_sess_id + 1;
     
     while ( (paa_get_session_by_sessID(out) && out != 0) ||
-            out != last_sess_id) {
+            out == last_sess_id) {
         out++;
     }
     
@@ -523,6 +583,7 @@ paa_sess_create(paa_config_t * paa_cfg, ip_port_t peer_ip_port)
     
     ctx->eap_config = get_eap_config(paa_cfg->eap_cfg);
     ctx->stats_flags = SF_CELARED;
+    ctx->method_data = eap_md5_init();
 
     /* TODO */
     ctx->eap_ret = szalloc(*ctx->eap_ret);
@@ -556,6 +617,9 @@ static void paa_remove_active_session(pana_session_t * sess) {
         return;
     }
     
+    /* revoke authorization */
+    ep_rule_register(sess, EP_COMMAND_REVOKE);
+    
     cursor = pacs_list;
     while (cursor && cursor != sess) {
         last = cursor;
@@ -564,9 +628,11 @@ static void paa_remove_active_session(pana_session_t * sess) {
 
     if (cursor != NULL) {
         last->next = cursor->next;
+        paa_pana_session_free(cursor);
     } else {
         DEBUG("SESSION NOT IN SESSION LIST");
     }
+    
 }
 
 
@@ -580,7 +646,7 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
     bytebuff_t * respData;
     pana_packet_t * pkt_in = NULL;
     pana_avp_node_t * tmpavplist = NULL;
-    
+    pana_avp_t * tmp_avp;
     
     if (datain != NULL) {
         dbg_hexdump(PKT_RECVD, "Packet-contents:", bytebuff_data(datain), datain->size);
@@ -739,7 +805,13 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
             else if (RX_PAN_S(pkt_in) && 
                     ((!OPTIMIZED_INIT) || exists_avp(pkt_in, PAVP_EAP_PAYLOAD))) {
                 clear_events();
-
+                 
+                tmp_avp = get_vend_avp_by_code(pkt_in->pp_avp_list, PAVP_PEER_MACADDR,
+                        PANA_VENDOR_UPB, AVP_GET_FIRST);
+                if (tmp_avp) {
+                    memcpy(ctx->peer_macaddr, tmp_avp->avp_value, MACADDR_LEN);
+                }
+                
                 if (exists_avp(pkt_in, PAVP_EAP_PAYLOAD)) {
                     TxEAP(pacs, pkt_in);
                 }
@@ -1146,14 +1218,11 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
     return respData;
 }
 
+#define TIMER_EXPIRED(timer) ((timer).enabled && time(NULL) >= (timer).deadline)
 
 
-
-
-
-
-int
-paa_main(const paa_config_t * const global_cfg) {
+int paa_main(const paa_config_t *  const global_cfg)
+{
     cfg = global_cfg;
     struct sockaddr_in paa_pana_sockaddr;
     struct sockaddr_in paa_ep_sockaddr;
@@ -1162,7 +1231,9 @@ paa_main(const paa_config_t * const global_cfg) {
     int ep_sockfd;
     fd_set pana_read_flags;
     fd_set ep_read_flags;
+    socklen_t tmpsocklen;
     struct timeval selnowait = {0 ,0};  //Nonblocking select
+    int ix;
     
     struct sockaddr_in peer_addr;      // used to store the peers addres per packet
     ip_port_t peer_ip_port;      // used to store the peers addres per packet
@@ -1189,8 +1260,8 @@ paa_main(const paa_config_t * const global_cfg) {
     
     bzero(&ep_sockaddr, sizeof ep_sockaddr);
     ep_sockaddr.sin_family = AF_INET;
-    ep_sockaddr.sin_addr.s_addr = cfg->paa_ep.ip;
-    ep_sockaddr.sin_port = cfg->paa_ep.port;
+    ep_sockaddr.sin_addr.s_addr = cfg->ep.ip;
+    ep_sockaddr.sin_port = cfg->ep.port;
     
     if ((pana_sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
         return ERR_SOCK_ERROR;
@@ -1206,8 +1277,8 @@ paa_main(const paa_config_t * const global_cfg) {
         return ERR_BIND_SOCK;
     }
 
-    if ((bind(pana_sockfd, &paa_ep_sockaddr, sizeof paa_ep_sockaddr)) < 0) {
-        close(pana_sockfd);
+    if ((bind(ep_sockfd, &paa_ep_sockaddr, sizeof paa_ep_sockaddr)) < 0) {
+        close(ep_sockfd);
         return ERR_BIND_SOCK;
     }
 
@@ -1251,9 +1322,9 @@ paa_main(const paa_config_t * const global_cfg) {
         while(select(pana_sockfd + 1, &pana_read_flags, NULL, NULL, &selnowait) > 0 &&
                 FD_ISSET(pana_sockfd, &pana_read_flags)) {
             FD_CLR(pana_sockfd, &pana_read_flags);
-
+            DEBUG("?");
             ret = recvfrom(pana_sockfd, bytebuff_data(rxbuff), rxbuff->size, 0,
-                    &peer_addr, sizeof peer_addr);
+                    &peer_addr, &tmpsocklen);
             if (ret <= 0) {
                 DEBUG(" No bytes were read");
                 continue;
@@ -1261,15 +1332,17 @@ paa_main(const paa_config_t * const global_cfg) {
             rxbuff->used = ret;
             dbg_asciihexdump(PANA_PKT_RECVD,"Contents:",
                     bytebuff_data(rxbuff), rxbuff->used);
-            
+
             /*
              * TODO: program this block
              */
             peer_ip_port = saddr_in_to_ip_port(&peer_addr);
-            
+
             if (is_PCI(rxbuff) & !paa_get_session_by_peeraddr(&peer_ip_port)) {
                 pacs = paa_sess_create(cfg, peer_ip_port);
                 if (pacs != NULL) {
+                    ((paa_ctx_t *)pacs->ctx)->pana_sockfd = pana_sockfd;
+                    ((paa_ctx_t *)pacs->ctx)->ep_sockfd = ep_sockfd;
                     pacs_list = sess_list_insert(pacs_list, pacs);
                     PKT_RECVD_Set();
                     txbuff = paa_process(pacs, rxbuff);
@@ -1281,8 +1354,8 @@ paa_main(const paa_config_t * const global_cfg) {
                     DEBUG("New session could not be created");
                 }
             }
-            
-            
+
+
             pacs = paa_get_session_by_sessID(paa_retrieve_sessID(rxbuff));
             if (pacs != NULL) {
                 if (pacs->pac_ip_port.ip == peer_ip_port.ip &&
@@ -1293,15 +1366,13 @@ paa_main(const paa_config_t * const global_cfg) {
                         paa_remove_active_session(pacs);
                     }
 
-                }
-                else {
+                } else {
                     DEBUG("!!!!!!!!!!!!!SESSION Hjacking Attempted!!!!!!!!!!!!!!!!!!");
                 }
-            }
-            else {
+            } else {
                 DEBUG("Wrong session requested");
             }
-            
+
             if (txbuff != NULL) {
                 dbg_asciihexdump(PANA_PKT_SENDING,"Contents:",
                         bytebuff_data(txbuff), txbuff->used);
@@ -1312,44 +1383,75 @@ paa_main(const paa_config_t * const global_cfg) {
                 }
                 free_bytebuff(txbuff);
             }
-            
-            
         }
 
         /*
          * Then check timers for each session
          */
-#define TIMER_EXPIRED(timer) ((timer).enabled && time(NULL) >= (timer).deadline)
-        
-    for (pacs = pacs_list; pacs != NULL; pacs = pacs->next) {
-        ctx = pacs->ctx;
-        if (ctx == NULL) {
-            dbg_printf(MALFORMED_SESSION, "This session is missing context");
-            continue;
-        }
-        
-        if (TIMER_EXPIRED(ctx->rtx_timer)) {
-            RTX_TIMEOUT_Set();
-            paa_process(pacs, NULL);
-            if (pacs->cstate == PAA_STATE_CLOSED) {
-                paa_remove_active_session(pacs);
+
+        for (pacs = pacs_list; pacs != NULL; pacs = pacs->next) {
+            ctx = pacs->ctx;
+            if (ctx == NULL) {
+                dbg_printf(MALFORMED_SESSION, "This session is missing context");
+                continue;
+            }
+
+            if (TIMER_EXPIRED(ctx->rtx_timer)) {
+                RTX_TIMEOUT_Set();
+                paa_process(pacs, NULL);
+                if (pacs->cstate == PAA_STATE_CLOSED) {
+                    paa_remove_active_session(pacs);
+                }
+            }
+
+            if (TIMER_EXPIRED(ctx->session_timer)) {
+                SESS_TIMEOUT_Set();
+                paa_process(pacs, NULL);
+                if (pacs->cstate == PAA_STATE_CLOSED) {
+                    paa_remove_active_session(pacs);
+                }
             }
         }
-        
-        if (TIMER_EXPIRED(ctx->session_timer)) {
-            SESS_TIMEOUT_Set();
-            paa_process(pacs, NULL);
-            if (pacs->cstate == PAA_STATE_CLOSED) {
-                paa_remove_active_session(pacs);
+
+
+        /* check for EP ACK's */
+        while(select(ep_sockfd + 1, &ep_read_flags, NULL, NULL, &selnowait) > 0 &&
+                FD_ISSET(ep_sockfd, &ep_read_flags)) {
+            FD_CLR(ep_sockfd, &ep_read_flags);
+
+            ret = recv(ep_sockfd, bytebuff_data(rxbuff), rxbuff->size, 0);
+            if (ret <= 0) {
+                DEBUG(" No bytes were read");
+                continue;
+            }
+            rxbuff->used = ret;
+            ep_rule_unregister(bytebuff_data(rxbuff)[0]);            
+        }
+
+
+        /* check EP_rtx_timers */
+        for (ix = 0; ix < 256; ix++) {
+            if(ep_ruleslist[ix] != NULL &&
+                    TIMER_EXPIRED(ep_ruleslist[ix]->rtx_timer)) {
+
+                txbuff = serialize_ep_pkt(ep_ruleslist[ix], ix);
+                if (txbuff != NULL) {
+                    ret = send(ep_sockfd, bytebuff_data(txbuff), txbuff->used, 0);
+                }
+                free_bytebuff(txbuff);
+                
+                if (ep_ruleslist[ix]->rtx_timer.count > cfg->rtx_max_count) {
+                    ep_rule_unregister(ix);
+                }
             }
         }
+
     }
-    
     /*
      * TODO CLeanup
      */
-
-    }
+    close(ep_sockfd);
+    close(pana_sockfd);
 }
 
 
