@@ -397,7 +397,8 @@ int os_snprintf(char *str, size_t size, const char *format, ...);
 #endif
 #ifndef os_free
 #define os_free(p) \
-    do{if((p) != NULL) {\
+    do{ dbg_printf(FREE_CALL,"called free() on: %s(%p)", #p , p);\
+        if((p) != NULL) {\
         free((p));\
         (p) = NULL;\
         }} while(0)

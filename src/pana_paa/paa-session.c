@@ -234,8 +234,7 @@ static void Retransmit(pana_session_t * pacs) {
         dbg_asciihexdump(PKT_RTX,"PAcket rtx contents",
                 bytebuff_data(pacs->pkt_cache),
                 pacs->pkt_cache->used);
-        res = send(ctx->pana_sockfd, bytebuff_data(pacs->pkt_cache),
-                pacs->pkt_cache->used, 0);
+        res = sendto(ctx->pana_sockfd, bytebuff_data(pacs->pkt_cache),pacs->pkt_cache->used, 0, );
         if (res < 0 || res != pacs->pkt_cache->used) {
             DEBUG("There was a problem when sending the cached pkt");
             dbg_printf(UNEXPECTED_SED_RES,
@@ -245,7 +244,7 @@ static void Retransmit(pana_session_t * pacs) {
         }
     }
     else {
-        DEBUG(/* Something happened to the cached packet???*/);
+        DEBUG(" Something happened to the cached packet???");
     }
     
     /* schedule the next retransmission */
@@ -649,7 +648,7 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
     pana_avp_t * tmp_avp;
     
     if (datain != NULL) {
-        dbg_hexdump(PKT_RECVD, "Packet-contents:", bytebuff_data(datain), datain->size);
+        dbg_hexdump(PKT_RECVD, "Packet-contents:", bytebuff_data(datain), datain->used);
         pkt_in = parse_pana_packet(datain);
         if (pkt_in == NULL) {
             dbg_printf(MSG_ERROR,"Packet is invalid");
@@ -805,6 +804,8 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
             else if (RX_PAN_S(pkt_in) && 
                     ((!OPTIMIZED_INIT) || exists_avp(pkt_in, PAVP_EAP_PAYLOAD))) {
                 clear_events();
+                
+                pacs->seq_rx = pkt_in->pp_seq_number;
                  
                 tmp_avp = get_vend_avp_by_code(pkt_in->pp_avp_list, PAVP_PEER_MACADDR,
                         PANA_VENDOR_UPB, AVP_GET_FIRST);
@@ -834,6 +835,7 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
                     !exists_avp(pkt_in, PAVP_EAP_PAYLOAD)) {
                 clear_events();
 
+                pacs->seq_rx = pkt_in->pp_seq_number;
                 // None();
 
                 pacs->cstate = PAA_STATE_WAIT_PAN_OR_PAR;
@@ -1215,7 +1217,9 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
         return NULL;
     }
     
+    dbgi_asciihexdump(respData,"replycontents:",bytebuff_data(respData), respData->used);
     return respData;
+    
 }
 
 #define TIMER_EXPIRED(timer) ((timer).enabled && time(NULL) >= (timer).deadline)
@@ -1232,7 +1236,7 @@ int paa_main(const paa_config_t *  const global_cfg)
     fd_set pana_read_flags;
     fd_set ep_read_flags;
     socklen_t tmpsocklen;
-    struct timeval selnowait = {0 ,0};  //Nonblocking select
+    struct timeval selnowait = {0 , 10};  //Nonblocking select
     int ix;
     
     struct sockaddr_in peer_addr;      // used to store the peers addres per packet
@@ -1290,23 +1294,20 @@ int paa_main(const paa_config_t *  const global_cfg)
     /*
      * Setup the sockfds (nonblocking)
      */
-
-    if (fcntl(pana_sockfd,F_SETFL, fcntl(pana_sockfd,F_GETFL,0) | O_NONBLOCK) == -1) {
-        close(pana_sockfd);
-        DEBUG("Could not set the socket as nonblocking");
-        dbg_printf(ERR_SETFL_NONBLOCKING,"Could not set the socket as nonblocking");
-        return ERR_NONBLOK_SOCK;
-    }
-    FD_ZERO(&pana_read_flags);
+    
+//    if (fcntl(pana_sockfd,F_SETFL, fcntl(pana_sockfd,F_GETFL,0) | O_NONBLOCK) == -1) {
+//        close(pana_sockfd);
+//        DEBUG("Could not set the socket as nonblocking");
+//        dbg_printf(ERR_SETFL_NONBLOCKING,"Could not set the socket as nonblocking");
+//        return ERR_NONBLOK_SOCK;
+//    }
     FD_SET(pana_sockfd, &pana_read_flags);
 
-    if (fcntl(ep_sockfd,F_SETFL, fcntl(ep_sockfd,F_GETFL,0) | O_NONBLOCK) == -1) {
-        close(ep_sockfd);
-        DEBUG("Could not set the socket as nonblocking");
-        dbg_printf(ERR_SETFL_NONBLOCKING,"Could not set the socket as nonblocking");
-        return ERR_NONBLOK_SOCK;
-    }
-    FD_ZERO(&ep_read_flags);
+//    if (fcntl(ep_sockfd,F_SETFL, fcntl(ep_sockfd,F_GETFL,0) | O_NONBLOCK) == -1) {
+//        close(ep_sockfd);
+//        dbg_printf(ERR_SETFL_NONBLOCKING,"Could not set the socket as nonblocking");
+//        return ERR_NONBLOK_SOCK;
+//    }
     FD_SET(ep_sockfd, &ep_read_flags);
     
     rxbuff = bytebuff_alloc(PANA_PKT_MAX_SIZE);
@@ -1319,10 +1320,10 @@ int paa_main(const paa_config_t *  const global_cfg)
         /*
          * While there are incoming pana packets to be processed process them.
          */
+        FD_SET(pana_sockfd, &pana_read_flags);
         while(select(pana_sockfd + 1, &pana_read_flags, NULL, NULL, &selnowait) > 0 &&
-                FD_ISSET(pana_sockfd, &pana_read_flags)) {
-            FD_CLR(pana_sockfd, &pana_read_flags);
-            DEBUG("?");
+                (FD_ISSET(pana_sockfd, &pana_read_flags))) {
+
             ret = recvfrom(pana_sockfd, bytebuff_data(rxbuff), rxbuff->size, 0,
                     &peer_addr, &tmpsocklen);
             if (ret <= 0) {
@@ -1333,18 +1334,16 @@ int paa_main(const paa_config_t *  const global_cfg)
             dbg_asciihexdump(PANA_PKT_RECVD,"Contents:",
                     bytebuff_data(rxbuff), rxbuff->used);
 
-            /*
-             * TODO: program this block
-             */
             peer_ip_port = saddr_in_to_ip_port(&peer_addr);
 
-            if (is_PCI(rxbuff) & !paa_get_session_by_peeraddr(&peer_ip_port)) {
+            if (is_PCI(rxbuff) && !paa_get_session_by_peeraddr(&peer_ip_port)) {
                 pacs = paa_sess_create(cfg, peer_ip_port);
                 if (pacs != NULL) {
-                    ((paa_ctx_t *)pacs->ctx)->pana_sockfd = pana_sockfd;
-                    ((paa_ctx_t *)pacs->ctx)->ep_sockfd = ep_sockfd;
-                    pacs_list = sess_list_insert(pacs_list, pacs);
-                    PKT_RECVD_Set();
+                    ctx = pacs->ctx;
+                    ctx->pana_sockfd = pana_sockfd;
+                    ctx->ep_sockfd = ep_sockfd;
+                    pacs_list = sess_list_insert(pacs_list, pacs); 
+                    PKT_RECVD_Set();                     /* sets pkt recv event for current ctx */
                     txbuff = paa_process(pacs, rxbuff);
                     if (pacs->cstate == PAA_STATE_CLOSED) {
                         paa_remove_active_session(pacs);
@@ -1353,38 +1352,40 @@ int paa_main(const paa_config_t *  const global_cfg)
                 else {
                     DEBUG("New session could not be created");
                 }
-            }
-
-
-            pacs = paa_get_session_by_sessID(paa_retrieve_sessID(rxbuff));
-            if (pacs != NULL) {
-                if (pacs->pac_ip_port.ip == peer_ip_port.ip &&
-                        pacs->pac_ip_port.port == peer_ip_port.port) {
-                    PKT_RECVD_Set();
-                    txbuff = paa_process(pacs, rxbuff);
-                    if (pacs->cstate == PAA_STATE_CLOSED) {
-                        paa_remove_active_session(pacs);
-                    }
-
-                } else {
-                    DEBUG("!!!!!!!!!!!!!SESSION Hjacking Attempted!!!!!!!!!!!!!!!!!!");
-                }
             } else {
-                DEBUG("Wrong session requested");
+                pacs = paa_get_session_by_sessID(paa_retrieve_sessID(rxbuff));
+                if (pacs != NULL) {
+                    if (pacs->pac_ip_port.ip == peer_ip_port.ip &&
+                            pacs->pac_ip_port.port == peer_ip_port.port) {
+                        PKT_RECVD_Set();
+                        txbuff = paa_process(pacs, rxbuff);
+                        if (pacs->cstate == PAA_STATE_CLOSED) {
+                            paa_remove_active_session(pacs);
+                        }
+
+                    } else {
+                        DEBUG("!!!!!!!!!!!!!SESSION Hjacking Attempted!!!!!!!!!!!!!!!!!!");
+                    }
+                } else {
+                    DEBUG("Wrong session requested");
+                }
             }
 
             if (txbuff != NULL) {
                 dbg_asciihexdump(PANA_PKT_SENDING,"Contents:",
                         bytebuff_data(txbuff), txbuff->used);
-                ret = send(pana_sockfd, bytebuff_data(txbuff), txbuff->used, 0);
+                ret = sendto(pana_sockfd, bytebuff_data(txbuff), txbuff->used, 0,
+                        &peer_addr, sizeof(peer_addr));
                 if (ret < 0 && ret != txbuff->used) {
                     /* will try at retransmission time */
+                    
                     DEBUG("There was a problem when sending the message.");
                 }
                 free_bytebuff(txbuff);
             }
         }
-
+        
+        //----------------------------------------------------------------------------------------------
         /*
          * Then check timers for each session
          */
@@ -1415,10 +1416,10 @@ int paa_main(const paa_config_t *  const global_cfg)
 
 
         /* check for EP ACK's */
-        while(select(ep_sockfd + 1, &ep_read_flags, NULL, NULL, &selnowait) > 0 &&
-                FD_ISSET(ep_sockfd, &ep_read_flags)) {
-            FD_CLR(ep_sockfd, &ep_read_flags);
-
+        FD_SET(ep_sockfd, &ep_read_flags);
+        while (select(ep_sockfd + 1, &ep_read_flags, NULL, NULL, &selnowait) > 0 &&
+                (FD_ISSET(ep_sockfd, &ep_read_flags))) {
+            
             ret = recv(ep_sockfd, bytebuff_data(rxbuff), rxbuff->size, 0);
             if (ret <= 0) {
                 DEBUG(" No bytes were read");

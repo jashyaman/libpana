@@ -16,7 +16,7 @@ void dbgi_asciihexdump(const char * const level, const char * const title,
                       const unsigned char * const buff, unsigned int len);
 
 #define dbg_printf(level,fmt, args...) \
-    printf("[%s]: " fmt "\n" , #level, ##args)
+    printf("[%s] %s(%d): " fmt "\n" , #level, __FILE__, __LINE__, ##args)
 
 #define dbg_hexdump(level, title, buff, len) dbgi_hexdump(#level, title, buff, len)
 

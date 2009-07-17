@@ -35,27 +35,34 @@
 #define RX_PTA(pktin)   RX(PMT_PTA, PFLAGS_NONE, pktin)
 
 
-#define TX(msgtype, msgflags, avplist, respbuff) \
+#define TXR(msgtype, msgflags, avplist, respbuff) \
  do {\
       pana_packet_t * pkt__ = construct_pana_packet((msgtype), (msgflags), pacs->session_id, pacs->seq_tx++, avplist);\
       respbuff = serialize_pana_packet(pkt__);\
       free_pana_packet(pkt__);\
  } while(0)
 
-#define TX_PCI(respbuff, avplist)   TX(PMT_PCI, PFLAGS_NONE, avplist, respbuff)
+#define TXA(msgtype, msgflags, avplist, respbuff) \
+ do {\
+      pana_packet_t * pkt__ = construct_pana_packet((msgtype), (msgflags), pacs->session_id, pacs->seq_rx++, avplist);\
+      respbuff = serialize_pana_packet(pkt__);\
+      free_pana_packet(pkt__);\
+ } while(0)
 
-#define TX_PAR(respbuff, avplist)   TX(PMT_PAR, PFLAG_R, avplist, respbuff)
+#define TX_PCI(respbuff, avplist)   TXR(PMT_PCI, PFLAGS_NONE, avplist, respbuff)
 
-#define TX_PAN_S(respbuff, avplist) TX(PMT_PAN, PFLAG_S, avplist, respbuff)
-#define TX_PAN(respbuff, avplist)   TX(PMT_PAN, PFLAGS_NONE, avplist, respbuff)
-#define TX_PAN_C(respbuff, avplist) TX(PMT_PAN, PFLAG_C, avplist, respbuff)
+#define TX_PAR(respbuff, avplist)   TXR(PMT_PAR, PFLAG_R, avplist, respbuff)
 
-#define TX_PNA_P(respbuff, avplist) TX(PMT_PNA, PFLAG_P, avplist, respbuff)
-#define TX_PNR_P(respbuff, avplist) TX(PMT_PNA, (PFLAG_R | PFLAG_P), avplist, respbuff)
+#define TX_PAN_S(respbuff, avplist) TXA(PMT_PAN, PFLAG_S, avplist, respbuff)
+#define TX_PAN(respbuff, avplist)   TXA(PMT_PAN, PFLAGS_NONE, avplist, respbuff)
+#define TX_PAN_C(respbuff, avplist) TXA(PMT_PAN, PFLAG_C, avplist, respbuff)
 
-#define TX_PNR_A(respbuff, avplist) TX(PMT_PNA, (PFLAG_R | PFLAG_A), avplist, respbuff)
+#define TX_PNA_P(respbuff, avplist) TXA(PMT_PNA, PFLAG_P, avplist, respbuff)
+#define TX_PNR_P(respbuff, avplist) TXR(PMT_PNA, (PFLAG_R | PFLAG_P), avplist, respbuff)
 
-#define TX_PTA(respbuff, avplist)   TX(PMT_PTA, PFLAGS_NONE, avplist, respbuff)
-#define TX_PTR(respbuff, avplist)   TX(PMT_PTR, PFLAG_R, avplist, respbuff)
+#define TX_PNR_A(respbuff, avplist) TXR(PMT_PNA, (PFLAG_R | PFLAG_A), avplist, respbuff)
+
+#define TX_PTA(respbuff, avplist)   TXA(PMT_PTA, PFLAGS_NONE, avplist, respbuff)
+#define TX_PTR(respbuff, avplist)   TXR(PMT_PTR, PFLAG_R, avplist, respbuff)
 
 #endif /* PACSESSION_H_ */
