@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include "utils/util.h"
 #include "utils/bytebuff.h"
-#include "libpana.h"
+#include "../include/libpana.h"
 
 #define MACADDR_LEN  6
 
@@ -151,8 +151,7 @@ typedef struct pana_sa_s {
 
 typedef struct pana_sesion_s {
     uint32_t session_id;
-    ip_port_t pac_ip_port;
-    ip_port_t paa_ip_port;
+    sockaddr_in4_t peer_addr;
     int cstate;
     uint32_t seq_rx;
     uint32_t seq_tx;

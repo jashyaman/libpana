@@ -39,6 +39,6 @@
         (p) = NULL;\
         }} while(0)
 
-ip_port_t * str_to_ip_port(const char * const in_str);
+sockaddr_in4_t * str_to_sockaddr_in4(const char * const in_str);
 
 #endif /* COMMON_H_ */

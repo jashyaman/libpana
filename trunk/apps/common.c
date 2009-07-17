@@ -11,13 +11,13 @@
 /*
  * Misc util functions.
  */
-ip_port_t * str_to_ip_port(const char * const in_str) {
+sockaddr_in4_t * str_to_sockaddr_in4(const char * const in_str) {
     unsigned long tmp_val = 0;
     int res = 0; 
     char * cpos = NULL;
     char * tmpstr = NULL;
     
-    ip_port_t * out = malloc(sizeof(ip_port_t));
+    sockaddr_in4_t * out = calloc(sizeof(sockaddr_in4_t),1);
     if (out == NULL) {
         return NULL;
     }
@@ -29,8 +29,8 @@ ip_port_t * str_to_ip_port(const char * const in_str) {
         /*
          * Only the ip is specified. The port is implied to be the default one
          */
-        out->port = 0;
-        if (inet_pton(AF_INET, tmpstr, &out->ip) <= 0) {
+        out->sin_port = 0;
+        if (inet_pton(AF_INET, tmpstr, &out->sin_addr.s_addr) <= 0) {
             res = -1;
         }
     } else {
@@ -43,8 +43,8 @@ ip_port_t * str_to_ip_port(const char * const in_str) {
         if (*cpos != '\0' || tmp_val > MAX_PORTN) {
             res = -1;
         }
-        out->port = htons(tmp_val);
-        if (inet_pton(AF_INET, tmpstr, &out->ip) <= 0) {
+        out->sin_port = htons(tmp_val);
+        if (inet_pton(AF_INET, tmpstr, &out->sin_addr.s_addr) <= 0) {
             res = -1;
         }
     }
