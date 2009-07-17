@@ -148,8 +148,29 @@ static void RtxTimerStart(bytebuff_t * respdata) {
 }
 
 
+static void Resend_cached() {
+    int res;
+    pac_ctx_t * ctx = pacs->ctx;
 
-
+    if (pacs->pkt_cache != NULL) {
+        dbg_asciihexdump(PKT_RTX,"PAcket rtx contents",
+                bytebuff_data(pacs->pkt_cache),
+                pacs->pkt_cache->used);
+        res = send(ctx->sockfd, bytebuff_data(pacs->pkt_cache),
+                pacs->pkt_cache->used, 0);
+        if (res < 0 || res != pacs->pkt_cache->used) {
+            DEBUG("There was a problem when sending the cached pkt");
+            dbg_printf(UNEXPECTED_SED_RES,
+                    "res was: %d and [errno=%d] : %s",
+                    res, errno, strerror(errno));
+            
+        }
+    }
+    else {
+        DEBUG(/* Something happened to the cached packet???*/);
+    }
+    
+}
 
 
 static void Retransmit() {
@@ -358,6 +379,7 @@ static pana_avp_list_t pac_avplist_create(pana_session_t * pacs, pana_avp_codes_
     va_start(ap,AVP);
     do {
         switch (reqAVP) {
+        
         case PAVP_NONCE:
             if (pacs->sa == NULL) {
                 break;
@@ -373,6 +395,7 @@ static pana_avp_list_t pac_avplist_create(pana_session_t * pacs, pana_avp_codes_
                     pacs->sa->PaC_nonce, sizeof(pacs->sa->PaC_nonce));
             tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
             break;
+            
         case PAVP_EAP_PAYLOAD:
             if (ctx->eap_resp_payload == NULL) {
                 break;
@@ -382,6 +405,7 @@ static pana_avp_list_t pac_avplist_create(pana_session_t * pacs, pana_avp_codes_
                     ctx->eap_resp_payload->used);
             tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
             break;
+            
         case PAVP_PEER_MACADDR:
             tmp_avp = create_avp(PAVP_PEER_MACADDR, FAVP_FLAG_VENDOR, PANA_VENDOR_UPB,
                     ctx->pacglobal->pac_macaddr,MACADDR_LEN);
@@ -1092,19 +1116,32 @@ pac_main(const pac_config_t * const global_cfg) {
             rxbuff->used = ret;
             dbg_asciihexdump(PANA_PKT_RECVD,"Contents:",
                     bytebuff_data(rxbuff), rxbuff->used);
-
-            PKT_RECVD_Set();
-            txbuff = pac_process(rxbuff);
-            if (txbuff != NULL) {
-                dbg_asciihexdump(PANA_PKT_SENDING,"Contents:",
-                        bytebuff_data(txbuff), txbuff->used);
-                ret = send(sockfd, bytebuff_data(txbuff), txbuff->used, 0);
-                if (ret < 0 && ret != txbuff->used) {
-                    /* will try at retransmission time */
-                    DEBUG("There was a problem when sending the message.");
-                }
-                free_bytebuff(txbuff);                
+            
+            if (pacs->session_id && retrieve_sessID(rxbuff) != pacs->session_id) {
+                DEBUG("Wrong session ID!");
+                continue;
             }
+
+            if (pacs->seq_rx - 1 == retrieve_seqNo(rxbuff)) {
+                Resend_cached();
+            } else if(pacs->seq_rx == retrieve_seqNo(rxbuff)) {
+                txbuff = pac_process(rxbuff);
+                PKT_RECVD_Set();
+                txbuff = pac_process(rxbuff);
+                if (txbuff != NULL) {
+                    dbg_asciihexdump(PANA_PKT_SENDING,"Contents:",
+                            bytebuff_data(txbuff), txbuff->used);
+                    ret = send(sockfd, bytebuff_data(txbuff), txbuff->used, 0);
+                    if (ret < 0 && ret != txbuff->used) {
+                        /* will try at retransmission time */
+                        DEBUG("There was a problem when sending the message.");
+                    }
+                    free_bytebuff(txbuff);                
+                }
+            } else {
+                DEBUG("Sequence number missmatch.");
+            }
+            
         }
         
         /*
