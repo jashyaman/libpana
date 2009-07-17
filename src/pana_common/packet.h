@@ -62,6 +62,8 @@ void free_pana_packet(pana_packet_t * pkt);
 
 
 
-
+uint16_t retrieve_msgType(const bytebuff_t * const datain);
+uint32_t retrieve_sessID(const bytebuff_t * const datain);
+uint32_t retrieve_seqNo(const bytebuff_t * const datain);
 
 #endif /* PACKET_H_ */

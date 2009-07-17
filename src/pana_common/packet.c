@@ -394,3 +394,30 @@ free_pana_packet(pana_packet_t * pkt){
 }
 
 
+/* Getting info from the header */
+
+uint16_t retrieve_msgType(const bytebuff_t * const datain) {
+    if (!datain) {
+        return 0;
+    }
+
+    return bytes_to_be16(bytebuff_data(datain) + PPL_OFFSET_MSG_TYPE);
+}
+
+uint32_t retrieve_sessID(const bytebuff_t * const datain) {
+    if (!datain) {
+        return 0;
+    }
+
+    return bytes_to_be32(bytebuff_data(datain) + PPL_OFFSET_SESSION_ID);
+}
+
+
+uint32_t retrieve_seqNo(const bytebuff_t * const datain) {
+    if (!datain) {
+        return 0;
+    }
+
+    return bytes_to_be32(bytebuff_data(datain) + PPL_OFFSET_SEQ_NUMBER);
+}
+

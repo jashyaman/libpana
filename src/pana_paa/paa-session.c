@@ -252,6 +252,30 @@ static void Retransmit(pana_session_t * pacs) {
     ctx->rtx_timer.deadline = time(NULL) + cfg->rtx_interval;
 }
 
+
+static void Resend_cached(pana_session_t * pacs) {
+    int res;
+    paa_ctx_t * ctx = pacs->ctx;
+
+    if (pacs->pkt_cache != NULL) {
+        dbg_asciihexdump(PKT_RTX,"PAcket rtx contents",
+                bytebuff_data(pacs->pkt_cache),
+                pacs->pkt_cache->used);
+        res = sendto(ctx->pana_sockfd, bytebuff_data(pacs->pkt_cache),pacs->pkt_cache->used,
+                0, &pacs->peer_addr, sizeof(pacs->peer_addr));
+        if (res < 0 || res != pacs->pkt_cache->used) {
+            DEBUG("There was a problem when sending the cached pkt");
+            dbg_printf(UNEXPECTED_SED_RES,
+                    "res was: %d and [errno=%d] : %s",
+                    res, errno, strerror(errno));
+        }
+    }
+    else {
+        DEBUG(" Something happened to the cached packet???");
+    }
+    
+}
+
 static int ep_rule_register(pana_session_t * pacs, uint8_t cmd) {
     paa_ctx_t * ctx = pacs->ctx;
     bytebuff_t * tmptxbuff = NULL;
@@ -339,6 +363,7 @@ static pana_avp_list_t paa_avplist_create(pana_session_t * pacs, uint32_t AVP, .
     va_start(ap,AVP);
     do {
         switch (reqAVP & 0xffff) {
+        
         case PAVP_NONCE:
             if (pacs->sa == NULL) {
                 break;
@@ -354,6 +379,7 @@ static pana_avp_list_t paa_avplist_create(pana_session_t * pacs, uint32_t AVP, .
                     pacs->sa->PaC_nonce, sizeof(pacs->sa->PaC_nonce));
             tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
             break;
+            
         case PAVP_EAP_PAYLOAD:
             if (ctx->eap_resp_payload == NULL) {
                 break;
@@ -363,6 +389,7 @@ static pana_avp_list_t paa_avplist_create(pana_session_t * pacs, uint32_t AVP, .
                     ctx->eap_resp_payload->used);
             tmpavplist = avp_list_insert(tmpavplist, avp_node_create(tmp_avp));
             break;
+            
         case PAVP_RESULT_CODE:
             tmpval = szalloc(uint32_t);
             buff_insert_be32(tmpval, (reqAVP >> 16) & 0xffff);
@@ -380,29 +407,6 @@ static pana_avp_list_t paa_avplist_create(pana_session_t * pacs, uint32_t AVP, .
     return tmpavplist;
 }
 
-
-
-static uint32_t paa_retrieve_sessID(bytebuff_t * datain ) {
-    if (!datain) {
-        return 0;
-    }
-    
-    return bytes_to_be32(bytebuff_data(datain) + PPL_OFFSET_SESSION_ID);
-}
-
-
-static Boolean is_PCI(bytebuff_t * datain ) {
-    if (!datain) {
-        return FALSE;
-    }
-    
-    if (bytes_to_be16(bytebuff_data(datain) + PPL_OFFSET_MSG_TYPE) == PMT_PCI) {
-        return TRUE;
-    }
-    
-    return FALSE;
-    
-}
 
 static eap_peer_config_t * get_eap_config(pana_eap_peer_config_t * cfg) {
     eap_peer_config_t * out_cfg = NULL;
@@ -432,7 +436,7 @@ static eap_peer_config_t * get_eap_config(pana_eap_peer_config_t * cfg) {
  */
 
 
-void paa_pana_session_free(pana_session_t * sess){
+static void paa_pana_session_free(pana_session_t * sess){
     paa_ctx_t * ctx = sess->ctx;
     if (!sess) {
         return;
@@ -459,7 +463,7 @@ void paa_pana_session_free(pana_session_t * sess){
     
 }
 
-void sess_list_destroy(pana_session_t *sess_list)
+static void sess_list_destroy(pana_session_t *sess_list)
 {
     pana_session_t * cursor;
     pana_session_t * tmp_head;
@@ -479,7 +483,7 @@ void sess_list_destroy(pana_session_t *sess_list)
  *      dstlist = avp_list_append(dstlist,srclist);
  *      dstlist = avp_list_insert(dstlist,srclist);
  */
-pana_session_t *
+static pana_session_t *
 sess_list_append (pana_session_t * dst_list,
                  pana_session_t * src_list)
 {
@@ -498,12 +502,15 @@ sess_list_append (pana_session_t * dst_list,
     return dst_list;
 }
 
-pana_session_t *
+static pana_session_t *
 sess_list_insert (pana_session_t * dst_list,
                  pana_session_t * src_list)
 {
     return sess_list_append(src_list, dst_list);  // :D
 }
+
+
+/* session retrieving functions */
 
 static pana_session_t * 
 paa_get_session_by_sessID(uint32_t sessID){
@@ -518,24 +525,6 @@ paa_get_session_by_sessID(uint32_t sessID){
    return NULL;
 }
 
-uint32_t paa_get_available_sess_id() {
-    uint32_t out = last_sess_id + 1;
-    
-    while ( (paa_get_session_by_sessID(out) && out != 0) ||
-            out == last_sess_id) {
-        out++;
-    }
-    
-    if (out == last_sess_id) {
-        /* wrapped arround and still no free sessionID */
-        DEBUG ("ALL SESSIONS ARE TAKEN (... YEAH RIGHT, ALL 2^32 of them 8X )");
-        return 0;
-    }
-    
-    return out;
-}
-
-
 
 static pana_session_t * 
 paa_get_session_by_peeraddr(const sockaddr_in4_t * const peer_addr) {
@@ -549,6 +538,27 @@ paa_get_session_by_peeraddr(const sockaddr_in4_t * const peer_addr) {
    }
    
    return NULL;
+}
+
+/*
+ * session creation and erasing
+ */
+
+static uint32_t paa_get_available_sess_id() {
+    uint32_t out = last_sess_id + 1;
+    
+    while ((paa_get_session_by_sessID(out) && out != 0) &&
+            out != last_sess_id) {
+        out++;
+    }
+    
+    if (out == last_sess_id) {
+        /* wrapped arround and still no free sessionID */
+        DEBUG ("ALL SESSIONS ARE TAKEN (... YEAH RIGHT, ALL 2^32 of them 8X )");
+        return 0;
+    }
+    
+    return out;
 }
 
 static pana_session_t * 
@@ -597,7 +607,7 @@ paa_sess_create(const paa_config_t * const paa_cfg, const sockaddr_in4_t * const
 }
 
 /*
- * This funtion elliminates ione session from the global sessions list
+ * This funtion elliminates one session from the global sessions list
  */
 static void paa_remove_active_session(pana_session_t * sess) {
     pana_session_t * cursor, *last;
@@ -1317,7 +1327,8 @@ int paa_main(const paa_config_t *  const global_cfg)
                     bytebuff_data(rxbuff), rxbuff->used);
 
 
-            if (is_PCI(rxbuff) && !paa_get_session_by_peeraddr(&peer_addr)) {
+            if (retrieve_msgType(rxbuff) == PMT_PCI &&
+                    !paa_get_session_by_peeraddr(&peer_addr)) {
                 pacs = paa_sess_create(cfg, &peer_addr);
                 if (pacs != NULL) {
                     ctx = pacs->ctx;
@@ -1334,16 +1345,21 @@ int paa_main(const paa_config_t *  const global_cfg)
                     DEBUG("New session could not be created");
                 }
             } else {
-                pacs = paa_get_session_by_sessID(paa_retrieve_sessID(rxbuff));
+                pacs = paa_get_session_by_sessID(retrieve_sessID(rxbuff));
                 if (pacs != NULL) {
                     if (pacs->peer_addr.sin_addr.s_addr == peer_addr.sin_addr.s_addr &&
                             pacs->peer_addr.sin_port == peer_addr.sin_port) {
-                        PKT_RECVD_Set();
-                        txbuff = paa_process(pacs, rxbuff);
-                        if (pacs->cstate == PAA_STATE_CLOSED) {
-                            paa_remove_active_session(pacs);
+                        if (pacs->seq_rx - 1 == retrieve_seqNo(rxbuff)) {
+                            Resend_cached(pacs);
+                        } else if(pacs->seq_rx == retrieve_seqNo(rxbuff)) {
+                            PKT_RECVD_Set();
+                            txbuff = paa_process(pacs, rxbuff);
+                            if (pacs->cstate == PAA_STATE_CLOSED) {
+                                paa_remove_active_session(pacs);
+                            }
+                        } else {
+                            DEBUG("Sequence number missmatch.");
                         }
-
                     } else {
                         DEBUG("!!!!!!!!!!!!!SESSION Hjacking Attempted!!!!!!!!!!!!!!!!!!");
                     }
