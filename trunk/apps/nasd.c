@@ -76,15 +76,15 @@ int process_config_files() {
      */
     ip_port_t * tmp_iport;
 
-    tmp_iport = str_to_ip_port("127.0.0.1:8001");// remote ep address
+    tmp_iport = str_to_ip_port("192.168.1.102:8001");// remote ep address
     global_cfg.ep= *tmp_iport;
     os_free(tmp_iport);
 
-    tmp_iport = str_to_ip_port("127.0.0.1:7000");  // local port fo incomming pana comms
+    tmp_iport = str_to_ip_port("192.168.1.102:7000");  // local port fo incomming pana comms
     global_cfg.paa_pana= *tmp_iport;
     os_free(tmp_iport);
     
-    tmp_iport = str_to_ip_port("127.0.0.1:8000"); // local port fo ep comm
+    tmp_iport = str_to_ip_port("192.168.1.102:8000"); // local port fo ep comm
     global_cfg.paa_ep= *tmp_iport;
     os_free(tmp_iport);
     

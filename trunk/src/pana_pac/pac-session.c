@@ -334,6 +334,8 @@ static void pac_session_init(pac_config_t * pac_cfg){
     ctx->reauth_timer.enabled = FALSE;
     pacs->cstate = PAC_STATE_INITIAL;
     AUTH_USER_Set();
+    bytebuff_t  * xb = bytebuff_alloc(20);
+    
     
 }
 
@@ -399,13 +401,13 @@ static bytebuff_t *
 pac_process(bytebuff_t * datain) {
     pac_ctx_t * ctx =  pacs->ctx;
     
-    bytebuff_t * respData;
+    bytebuff_t * respData = NULL;
     pana_packet_t * pkt_in = NULL;
     pana_avp_node_t * tmpavplist = NULL;
     
     
     if (datain != NULL) {
-        dbg_hexdump(PKT_RECVD, "Packet-contents:", bytebuff_data(datain), datain->size);
+        dbg_hexdump(PKT_RECVD, "Packet-contents:", bytebuff_data(datain), datain->used);
         pkt_in = parse_pana_packet(datain);
         if (pkt_in == NULL) {
             dbg_printf(MSG_ERROR,"Packet is invalid");
@@ -517,6 +519,7 @@ pac_process(bytebuff_t * datain) {
                 /* initialise tx_seq and rx_seq*/
                 pacs->seq_rx = pkt_in->pp_seq_number;
                 pacs->seq_tx = random();
+                pacs->session_id = pkt_in->pp_session_id;
                 /* MD5 does not generate MSK so no pana_sa needed */
                 TX_PAN_S(respData, NULL);
                 pacs->cstate = PAC_STATE_WAIT_PAA;                
@@ -533,6 +536,7 @@ pac_process(bytebuff_t * datain) {
                 /* initialise tx_seq and rx_seq*/
                 pacs->seq_rx = pkt_in->pp_seq_number;
                 pacs->seq_tx = random();
+                pacs->session_id = pkt_in->pp_session_id;
                 EAP_Restart();
                 TxEAP(pkt_in);
                 SessionTimerReStart(FAILED_SESS_TIMEOUT);
@@ -558,6 +562,7 @@ pac_process(bytebuff_t * datain) {
                 /* initialise tx_seq and rx_seq*/
                 pacs->seq_rx = pkt_in->pp_seq_number;
                 pacs->seq_tx = random();
+                pacs->session_id = pkt_in->pp_session_id;
                 EAP_Restart();
                 TxEAP(pkt_in);
                 SessionTimerReStart(FAILED_SESS_TIMEOUT);
@@ -1003,7 +1008,7 @@ pac_main(const pac_config_t * const global_cfg) {
     struct sockaddr_in nas_sockaddr;
     int sockfd;
     fd_set read_flags;
-    struct timeval selnowait = {0 ,0};  //Nonblocking select
+    struct timeval selnowait = {0 ,10};  //Nonblocking select
     bytebuff_t * rxbuff = NULL;
     bytebuff_t * txbuff = NULL;
     int ret;
@@ -1043,15 +1048,13 @@ pac_main(const pac_config_t * const global_cfg) {
      * Setup the sockfd (nonblocking)
      */
        
-    if (fcntl(sockfd,F_SETFL, fcntl(sockfd,F_GETFL,0) | O_NONBLOCK) == -1) {
-        close(sockfd);
-        DEBUG("Could not set the socket as nonblocking");
-        dbg_printf(ERR_SETFL_NONBLOCKING,"Could not set the socket as nonblocking");
-        return ERR_NONBLOK_SOCK;
-    }
+//    if (fcntl(sockfd,F_SETFL, fcntl(sockfd,F_GETFL,0) | O_NONBLOCK) == -1) {
+//        close(sockfd);
+//        DEBUG("Could not set the socket as nonblocking");
+//        dbg_printf(ERR_SETFL_NONBLOCKING,"Could not set the socket as nonblocking");
+//        return ERR_NONBLOK_SOCK;
+//    }
     
-    FD_ZERO(&read_flags);
-    FD_SET(sockfd, &read_flags);
     
     /*
      * Start the PANA session
@@ -1078,9 +1081,9 @@ pac_main(const pac_config_t * const global_cfg) {
         /* 
          * While there are incoming packets to be processed process them.
          */
+        FD_SET(sockfd, &read_flags);
         while(select(sockfd + 1, &read_flags, NULL, NULL, &selnowait) > 0 &&
-                FD_ISSET(sockfd, &read_flags)) {
-            FD_CLR(sockfd, &read_flags);
+                (FD_ISSET(sockfd, &read_flags))) {
            
             ret = recv(sockfd, bytebuff_data(rxbuff), rxbuff->size, 0);
             if (ret <= 0) {

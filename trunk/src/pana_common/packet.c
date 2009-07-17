@@ -17,7 +17,7 @@
 static uint8_t PAD[4] = {0x00, 0x00, 0x00, 0x00};
 
 static inline uint16_t round_to_dwords(const uint16_t length) {
-    return (length & 0xFFFC) + (length & 0x003) ? 0x0004 : 0x0000;
+    return ((length & 0xFFFC) + ((length & 0x003) ? 0x0004 : 0x0000));
 }
 
 static inline uint16_t pads_to_dword(const uint16_t length) {
@@ -280,7 +280,7 @@ parse_pana_packet (bytebuff_t * buff)
         px += tmp_node->node.avp_length;
     }
 
-    return 0;
+    return out;
 }
 
 /*
@@ -289,8 +289,8 @@ parse_pana_packet (bytebuff_t * buff)
 bytebuff_t *
 serialize_pana_packet (const pana_packet_t * const pkt)
 {
-    bytebuff_t * out;
-    uint8_t * pos;
+    bytebuff_t * out = NULL;
+    uint8_t * pos = NULL;
     pana_avp_node_t * cursor = NULL;
     
     if (pkt == NULL) {
@@ -303,7 +303,7 @@ serialize_pana_packet (const pana_packet_t * const pkt)
     }
 
     pos = bytebuff_data(out);
-    pkt->pp_message_length;
+
 
     buff_insert_be16(pos + PPL_OFFSET_RESERVED,    pkt->pp_reserved);
     buff_insert_be16(pos + PPL_OFFSET_MSG_LENGTH,  pkt->pp_message_length);
@@ -373,7 +373,7 @@ construct_pana_packet (uint16_t message_type,
 
     cursor = avp_list;
     while (cursor != NULL) {
-        msg_length += (cursor->node.avp_flags | FAVP_FLAG_VENDOR) ?
+        msg_length += (cursor->node.avp_flags & FAVP_FLAG_VENDOR) ?
                 PAL_OFFSET_AVP_VENDOR_VALUE : PAL_OFFSET_AVP_VALUE;
         msg_length += round_to_dwords(cursor->node.avp_length);
         cursor = cursor->next;

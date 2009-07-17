@@ -82,11 +82,11 @@ int process_config_files() {
      */
     ip_port_t * tmp_iport;
 
-    tmp_iport = str_to_ip_port("127.0.0.1:5000");   // locsl port
+    tmp_iport = str_to_ip_port("192.168.1.102:5000");   // locsl port
     global_cfg.pac = *tmp_iport;
     os_free(tmp_iport);
 
-    tmp_iport = str_to_ip_port("127.0.0.1:7000");    // server's address
+    tmp_iport = str_to_ip_port("192.168.1.102:7000");    // server's address
     global_cfg.paa = *tmp_iport;
     os_free(tmp_iport);
     

@@ -8,6 +8,8 @@
 #ifndef PACKET_H_
 #define PACKET_H_
 
+#include "utils/debug.h"
+#include "utils/os.h"
 #include "pana_common.h"
 
 

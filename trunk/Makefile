@@ -46,13 +46,14 @@ endif
 
 
 all: pacd nasd
+fresh: clean all
 
 
 pacd: $(PAC_OBJ)
-	$(CC) $(PACINCLUDES) $^ -o pacd
+	$(CC) $(PACINCLUDES) -o pacd $^ /home/alex/Desktop/diehard/src/libdiehard.so
 
 nasd: $(PAA_OBJ)
-	$(CC) $(PAAINCLUDES) $^ -o nasd
+	$(CC) $(PAAINCLUDES) -o nasd $^ /home/alex/Desktop/diehard/src/libdiehard.so
 
 
 clean:
@@ -60,5 +61,5 @@ clean:
 	-$(RM) $(PAA_OBJ) $(PAA_DEPS)
 	-$(RM) pacd nasd
 
-.PHONY: all clean pacd nasd
+.PHONY: all clean pacd nasd fresh
 

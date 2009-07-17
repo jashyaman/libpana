@@ -71,12 +71,4 @@ static inline void buff_insert_be32(uint8_t * buff, uint32_t val) {
     buff[3] = (val >> 0) & 0xff;
 }
 
-
-#define os_free(p) \
-    do{if((p) != NULL) {\
-        free((p));\
-        (p) = NULL;\
-        }} while(0)
-
-
 #endif /* UTIL_H_ */
