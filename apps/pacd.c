@@ -31,47 +31,9 @@ static pac_config_t global_cfg;
 static int process_args(char * argv[], int argc) {
     short flags = 0x0000; // the p,s,c,d;
     int ctoken = 1;       // skip command name
-    char * pos = NULL;
-    unsigned long tmp_parsing_val = 0;
-    ip_port_t * tmp_ipporv = NULL;
-
-    while (ctoken < argc) {
-        if ((strcmp(argv[ctoken++], "-h") == 0)) {
-            puts(PACD_USAGE_MSG);
-            return NFO_HELP_REQ;
-        }
-        else if ((strcmp(argv[ctoken++], "-p") == 0) && !(flags & CMD_FLAG_P)) {
-            /*
-             * Client port number
-             */
-            tmp_parsing_val = strtoul(argv[ctoken++], &pos, DECIMAL_BASE);
-            if (pos != '\0' || tmp_parsing_val > MAX_PORTN) {
-                puts("Incorrect port number: should be in 0-65365\n");
-                return ERR_BADARGS;
-            }
-            global_cfg.pac.port = tmp_parsing_val;
-        }
-        else if ((strcmp(argv[ctoken++], "-s") == 0) && !(flags & CMD_FLAG_S)) {
-            if (!(tmp_ipporv = str_to_ip_port(argv[ctoken++]))) {
-                puts("Incorrect ip:port address\n");
-                return ERR_BADARGS;
-            }
-            global_cfg.paa = *tmp_ipporv;
-            os_free(tmp_ipporv);
-        }
-        else if ((strcmp(argv[ctoken++], "-c") == 0) && !(flags & CMD_FLAG_C)) {
-            pacd_config_file = argv[ctoken++];
-        }
-        else if ((strcmp(argv[ctoken++], "-d") == 0) && !(flags & CMD_FLAG_D)) {
-            dhcp_lease_file = argv[ctoken++];
-        }
-        else {
-            puts("Bad or duplicate arguments.\n");
-            puts(PACD_USAGE_MSG);
-            return ERR_BADARGS;
-        }
-    }
-    
+    /*
+     * TODO: Recode to use optargs
+     */
     return RES_ARGS_OK;
 
 }
@@ -80,15 +42,15 @@ int process_config_files() {
     /*
      * TODO: implement parsing of config and dhcp-lease file
      */
-    ip_port_t * tmp_iport;
+    sockaddr_in4_t * tmp_addr;
 
-    tmp_iport = str_to_ip_port("192.168.1.102:5000");   // locsl port
-    global_cfg.pac = *tmp_iport;
-    os_free(tmp_iport);
+    tmp_addr = str_to_sockaddr_in4("192.168.1.102:5000");   // locsl port
+    global_cfg.pac_addr = *tmp_addr;
+    os_free(tmp_addr);
 
-    tmp_iport = str_to_ip_port("192.168.1.102:7000");    // server's address
-    global_cfg.paa = *tmp_iport;
-    os_free(tmp_iport);
+    tmp_addr = str_to_sockaddr_in4("192.168.1.102:7000");    // server's address
+    global_cfg.paa_addr = *tmp_addr;
+    os_free(tmp_addr);
     
     global_cfg.eap_cfg = malloc(sizeof(pana_eap_peer_config_t));
     global_cfg.eap_cfg->identity = "alex.antone@gmail.com";
@@ -98,16 +60,14 @@ int process_config_files() {
     global_cfg.reauth_interval = 80;
     global_cfg.rtx_interval = 10;
     global_cfg.rtx_max_count = 4;
-    global_cfg.failed_sess_timeout = 60;  // 5 min
-    memcpy(global_cfg.pac_macaddr, localmac, 6);
+    global_cfg.failed_sess_timeout = 60;  // 1 min
+    memcpy(global_cfg.pac_macaddr, localmac, sizeof(localmac));
     
     return RES_CFG_FILES_OK;
 }
 
 void cleanup() {
-    if (global_cfg.eap_cfg) {
-        os_free(global_cfg.eap_cfg);
-    }
+    os_free(global_cfg.eap_cfg);
 }
 
 int main(int argc, char * argv[])

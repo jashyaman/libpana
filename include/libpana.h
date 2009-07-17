@@ -8,17 +8,14 @@
 #ifndef LIBPANA_H_
 #define LIBPANA_H_
 
+#include <netinet/in.h>
+
 /* error codes */
 #define ERR_SOCK_ERROR          0x1003
 #define ERR_BIND_SOCK           0x1004
 #define ERR_CONNECT_SOCK        0x1005
 #define ERR_NONBLOK_SOCK        0x1006
 
-
-typedef struct ip_port_s {
-    uint32_t ip;
-    uint16_t port;      // UDP Port
-} ip_port_t;
 
 
 typedef struct pana_eap_peer_config {
@@ -29,11 +26,13 @@ typedef struct pana_eap_peer_config {
         size_t password_len;
 } pana_eap_peer_config_t;
 
+typedef struct sockaddr_in sockaddr_in4_t;
+
 /* PaC global config */
 typedef struct pac_config_s {
     /* auth config parameters */
-    ip_port_t pac;
-    ip_port_t paa;
+    sockaddr_in4_t pac_addr;
+    sockaddr_in4_t paa_addr;
     uint8_t pac_macaddr[6];
     pana_eap_peer_config_t * eap_cfg;
     
@@ -48,9 +47,9 @@ typedef struct pac_config_s {
 /* PAA global config */
 typedef struct paa_config_s {
     /* auth config parameters */
-    ip_port_t paa_pana;     // local address for pana comm.
-    ip_port_t paa_ep;       // local address for ep comm.
-    ip_port_t ep;           // Enforcement point address
+    sockaddr_in4_t paa_pana;     // local address for pana comm.
+    sockaddr_in4_t paa_ep;       // local address for ep comm.
+    sockaddr_in4_t ep_addr;           // Enforcement point address
     pana_eap_peer_config_t * eap_cfg;
     
     /* transmission params */

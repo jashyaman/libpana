@@ -320,8 +320,7 @@ static void pac_session_init(pac_config_t * pac_cfg){
     
     ctx = pacs->ctx;
     ctx->pacglobal = pac_cfg;
-    pacs->pac_ip_port = cfg->pac;
-    pacs->paa_ip_port = cfg->paa;
+    pacs->peer_addr = cfg->paa_addr;
     pacs->sa = szalloc(pana_sa_t);
     
     ctx->eap_ret = szalloc(*ctx->eap_ret);
@@ -1020,13 +1019,12 @@ pac_main(const pac_config_t * const global_cfg) {
     bzero(&pac_sockaddr, sizeof pac_sockaddr);
     pac_sockaddr.sin_family = AF_INET;
     pac_sockaddr.sin_addr.s_addr = INADDR_ANY; 
-    pac_sockaddr.sin_port = cfg->pac.port;
+    pac_sockaddr.sin_port = cfg->pac_addr.sin_port;
     
     
     bzero(&nas_sockaddr, sizeof nas_sockaddr);
     nas_sockaddr.sin_family = AF_INET;
-    nas_sockaddr.sin_addr.s_addr = cfg->paa.ip;
-    nas_sockaddr.sin_port = cfg->paa.port;
+    nas_sockaddr = cfg->paa_addr;
     
     if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
         return ERR_SOCK_ERROR;

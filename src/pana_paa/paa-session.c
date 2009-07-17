@@ -234,7 +234,8 @@ static void Retransmit(pana_session_t * pacs) {
         dbg_asciihexdump(PKT_RTX,"PAcket rtx contents",
                 bytebuff_data(pacs->pkt_cache),
                 pacs->pkt_cache->used);
-        res = sendto(ctx->pana_sockfd, bytebuff_data(pacs->pkt_cache),pacs->pkt_cache->used, 0, );
+        res = sendto(ctx->pana_sockfd, bytebuff_data(pacs->pkt_cache),pacs->pkt_cache->used,
+                0, &pacs->peer_addr, sizeof(pacs->peer_addr));
         if (res < 0 || res != pacs->pkt_cache->used) {
             DEBUG("There was a problem when sending the cached pkt");
             dbg_printf(UNEXPECTED_SED_RES,
@@ -262,7 +263,7 @@ static int ep_rule_register(pana_session_t * pacs, uint8_t cmd) {
             }
             ep_ruleslist[ix]->cmd = cmd;
             memcpy(ep_ruleslist[ix]->mac, ctx->peer_macaddr, MACADDR_LEN);
-            ep_ruleslist[ix]->ip = pacs->pac_ip_port.ip;
+            ep_ruleslist[ix]->ip = pacs->peer_addr.sin_addr.s_addr;
             ep_ruleslist[ix]->ttl = cfg->session_lifetime;
             
             ep_ruleslist[ix]->rtx_timer.enabled = TRUE;
@@ -403,17 +404,6 @@ static Boolean is_PCI(bytebuff_t * datain ) {
     
 }
 
-ip_port_t saddr_in_to_ip_port(const struct sockaddr_in * peer_addr) {
-    ip_port_t out;
-    os_memset(&out, 0, sizeof(ip_port_t));
-    out.ip = peer_addr->sin_addr.s_addr;
-    out.port = peer_addr->sin_port;
-    
-    return out;
-}
-
-
-
 static eap_peer_config_t * get_eap_config(pana_eap_peer_config_t * cfg) {
     eap_peer_config_t * out_cfg = NULL;
     if (!cfg) {
@@ -548,12 +538,12 @@ uint32_t paa_get_available_sess_id() {
 
 
 static pana_session_t * 
-paa_get_session_by_peeraddr(const ip_port_t * peer_addr) {
+paa_get_session_by_peeraddr(const sockaddr_in4_t * const peer_addr) {
    pana_session_t * cursor = pacs_list;
    
    for ( ; cursor != NULL ; cursor= cursor->next) {
-       if (cursor->pac_ip_port.port == peer_addr->port && 
-               cursor->pac_ip_port.ip == peer_addr->ip) {
+       if (cursor->peer_addr.sin_port == peer_addr->sin_port && 
+               cursor->peer_addr.sin_addr.s_addr == peer_addr->sin_addr.s_addr) {
            return cursor;
        }
    }
@@ -562,7 +552,7 @@ paa_get_session_by_peeraddr(const ip_port_t * peer_addr) {
 }
 
 static pana_session_t * 
-paa_sess_create(paa_config_t * paa_cfg, ip_port_t peer_ip_port)
+paa_sess_create(const paa_config_t * const paa_cfg, const sockaddr_in4_t * const peeraddr)
 {
     paa_ctx_t * ctx;
     cfg = paa_cfg;
@@ -576,8 +566,7 @@ paa_sess_create(paa_config_t * paa_cfg, ip_port_t peer_ip_port)
     
     ctx = out->ctx;
     ctx->paaglobal = paa_cfg;
-    out->pac_ip_port = peer_ip_port;
-    out->paa_ip_port = cfg->paa_pana;
+    out->peer_addr = *peeraddr;
     out->sa = szalloc(pana_sa_t);
     
     ctx->eap_config = get_eap_config(paa_cfg->eap_cfg);
@@ -1228,19 +1217,18 @@ paa_process(pana_session_t * pacs, bytebuff_t * datain) {
 int paa_main(const paa_config_t *  const global_cfg)
 {
     cfg = global_cfg;
-    struct sockaddr_in paa_pana_sockaddr;
-    struct sockaddr_in paa_ep_sockaddr;
-    struct sockaddr_in ep_sockaddr;
+    const sockaddr_in4_t * paa_pana_sockaddr;
+    const sockaddr_in4_t * paa_ep_sockaddr;
+    const sockaddr_in4_t * ep_sockaddr;
     int pana_sockfd;
     int ep_sockfd;
     fd_set pana_read_flags;
     fd_set ep_read_flags;
-    socklen_t tmpsocklen;
+    socklen_t peer_socklen;
     struct timeval selnowait = {0 , 10};  //Nonblocking select
     int ix;
     
-    struct sockaddr_in peer_addr;      // used to store the peers addres per packet
-    ip_port_t peer_ip_port;      // used to store the peers addres per packet
+    sockaddr_in4_t peer_addr;      // used to store the peers addres per packet
     bytebuff_t * rxbuff = NULL;
     bytebuff_t * txbuff = NULL;
     int ret;
@@ -1251,21 +1239,15 @@ int paa_main(const paa_config_t *  const global_cfg)
 
     
     bzero(&paa_pana_sockaddr, sizeof paa_pana_sockaddr);
-    paa_pana_sockaddr.sin_family = AF_INET;
-    paa_pana_sockaddr.sin_addr.s_addr = cfg->paa_pana.ip;
-    paa_pana_sockaddr.sin_port = cfg->paa_pana.port;
+    paa_pana_sockaddr = &cfg->paa_pana;
     
 
     bzero(&paa_ep_sockaddr, sizeof paa_ep_sockaddr);
-    paa_ep_sockaddr.sin_family = AF_INET;
-    paa_ep_sockaddr.sin_addr.s_addr = cfg->paa_ep.ip;
-    paa_ep_sockaddr.sin_port = cfg->paa_ep.port;
+    paa_ep_sockaddr = &cfg->paa_ep;
     
     
     bzero(&ep_sockaddr, sizeof ep_sockaddr);
-    ep_sockaddr.sin_family = AF_INET;
-    ep_sockaddr.sin_addr.s_addr = cfg->ep.ip;
-    ep_sockaddr.sin_port = cfg->ep.port;
+    ep_sockaddr = &cfg->ep_addr;
     
     if ((pana_sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
         return ERR_SOCK_ERROR;
@@ -1276,17 +1258,17 @@ int paa_main(const paa_config_t *  const global_cfg)
     }
     
 
-    if ((bind(pana_sockfd, &paa_pana_sockaddr, sizeof paa_pana_sockaddr)) < 0) {
+    if ((bind(pana_sockfd, paa_pana_sockaddr, sizeof (*paa_pana_sockaddr))) < 0) {
         close(pana_sockfd);
         return ERR_BIND_SOCK;
     }
 
-    if ((bind(ep_sockfd, &paa_ep_sockaddr, sizeof paa_ep_sockaddr)) < 0) {
+    if ((bind(ep_sockfd, paa_ep_sockaddr, sizeof (*paa_ep_sockaddr))) < 0) {
         close(ep_sockfd);
         return ERR_BIND_SOCK;
     }
 
-    if ((connect(ep_sockfd, &ep_sockaddr, sizeof ep_sockaddr)) < 0) {
+    if ((connect(ep_sockfd, ep_sockaddr, sizeof (*ep_sockaddr))) < 0) {
         close(ep_sockfd);
         return ERR_CONNECT_SOCK;
     }
@@ -1325,7 +1307,7 @@ int paa_main(const paa_config_t *  const global_cfg)
                 (FD_ISSET(pana_sockfd, &pana_read_flags))) {
 
             ret = recvfrom(pana_sockfd, bytebuff_data(rxbuff), rxbuff->size, 0,
-                    &peer_addr, &tmpsocklen);
+                    &peer_addr, &peer_socklen);
             if (ret <= 0) {
                 DEBUG(" No bytes were read");
                 continue;
@@ -1334,10 +1316,9 @@ int paa_main(const paa_config_t *  const global_cfg)
             dbg_asciihexdump(PANA_PKT_RECVD,"Contents:",
                     bytebuff_data(rxbuff), rxbuff->used);
 
-            peer_ip_port = saddr_in_to_ip_port(&peer_addr);
 
-            if (is_PCI(rxbuff) && !paa_get_session_by_peeraddr(&peer_ip_port)) {
-                pacs = paa_sess_create(cfg, peer_ip_port);
+            if (is_PCI(rxbuff) && !paa_get_session_by_peeraddr(&peer_addr)) {
+                pacs = paa_sess_create(cfg, &peer_addr);
                 if (pacs != NULL) {
                     ctx = pacs->ctx;
                     ctx->pana_sockfd = pana_sockfd;
@@ -1355,8 +1336,8 @@ int paa_main(const paa_config_t *  const global_cfg)
             } else {
                 pacs = paa_get_session_by_sessID(paa_retrieve_sessID(rxbuff));
                 if (pacs != NULL) {
-                    if (pacs->pac_ip_port.ip == peer_ip_port.ip &&
-                            pacs->pac_ip_port.port == peer_ip_port.port) {
+                    if (pacs->peer_addr.sin_addr.s_addr == peer_addr.sin_addr.s_addr &&
+                            pacs->peer_addr.sin_port == peer_addr.sin_port) {
                         PKT_RECVD_Set();
                         txbuff = paa_process(pacs, rxbuff);
                         if (pacs->cstate == PAA_STATE_CLOSED) {

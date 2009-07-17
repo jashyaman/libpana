@@ -12,7 +12,7 @@
 
 typedef enum {
     EP_COMMAND_SET = 1,
-    EP_COMMAND_REVOKE = 2
+    EP_COMMAND_REVOKE = 0
 } ep_command_t;
 
 typedef struct ep_rule_s {

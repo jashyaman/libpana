@@ -231,6 +231,7 @@
 <buildTargets>
 <target name="libpana" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 <buildCommand>make</buildCommand>
+<buildArguments/>
 <buildTarget>libpana</buildTarget>
 <stopOnError>true</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
@@ -238,7 +239,6 @@
 </target>
 <target name="pacd" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 <buildCommand>make</buildCommand>
-<buildArguments/>
 <buildTarget>pacd</buildTarget>
 <stopOnError>true</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
@@ -246,7 +246,6 @@
 </target>
 <target name="clean" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 <buildCommand>make</buildCommand>
-<buildArguments/>
 <buildTarget>clean</buildTarget>
 <stopOnError>true</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
@@ -254,7 +253,6 @@
 </target>
 <target name="nasd" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 <buildCommand>make</buildCommand>
-<buildArguments/>
 <buildTarget>nasd</buildTarget>
 <stopOnError>true</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
@@ -262,8 +260,15 @@
 </target>
 <target name="all" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 <buildCommand>make</buildCommand>
-<buildArguments/>
 <buildTarget>all</buildTarget>
+<stopOnError>true</stopOnError>
+<useDefaultCommand>true</useDefaultCommand>
+<runAllBuilders>true</runAllBuilders>
+</target>
+<target name="fresh" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+<buildCommand>make</buildCommand>
+<buildArguments/>
+<buildTarget>fresh</buildTarget>
 <stopOnError>true</stopOnError>
 <useDefaultCommand>true</useDefaultCommand>
 <runAllBuilders>true</runAllBuilders>
